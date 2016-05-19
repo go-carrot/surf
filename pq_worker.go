@@ -8,16 +8,14 @@ import (
 )
 
 type PqWorker struct {
-	BaseModel BaseModel `json:"-"`
-	Database  *sql.DB   `json:"-"`
+	Database *sql.DB       `json:"-"`
+	Config   Configuration `json:"-"`
 }
 
 func (w *PqWorker) Insert() error {
-	configuration := w.BaseModel.GetConfiguration()
-
 	// Get insertable fields
 	var insertableFields []Field
-	allFields := configuration.Fields
+	allFields := w.Config.Fields
 	for _, field := range allFields {
 		if field.Insertable {
 			insertableFields = append(insertableFields, field)
@@ -27,7 +25,7 @@ func (w *PqWorker) Insert() error {
 	// Building Query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("INSERT INTO ")
-	queryBuffer.WriteString(configuration.TableName)
+	queryBuffer.WriteString(w.Config.TableName)
 	queryBuffer.WriteString("(")
 	for i, field := range insertableFields {
 		queryBuffer.WriteString(field.Name)
@@ -61,12 +59,9 @@ func (w *PqWorker) Insert() error {
 }
 
 func (w *PqWorker) Load() error {
-	// Load Configuration
-	configuration := w.BaseModel.GetConfiguration()
-
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
-	allFields := configuration.Fields
+	allFields := w.Config.Fields
 	for _, field := range allFields {
 		if field.UniqueIdentifier {
 			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
@@ -81,7 +76,7 @@ func (w *PqWorker) Load() error {
 
 		var queryBuffer bytes.Buffer
 		queryBuffer.WriteString("SELECT * FROM ")
-		queryBuffer.WriteString(configuration.TableName)
+		queryBuffer.WriteString(w.Config.TableName)
 		queryBuffer.WriteString(" WHERE ")
 		queryBuffer.WriteString(field.Name)
 		queryBuffer.WriteString("=$1;")
@@ -106,12 +101,9 @@ func (w *PqWorker) Load() error {
 }
 
 func (w *PqWorker) Update() error {
-	// Load Configuration
-	configuration := w.BaseModel.GetConfiguration()
-
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
-	for _, field := range configuration.Fields {
+	for _, field := range w.Config.Fields {
 		if field.UniqueIdentifier {
 			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
 		}
@@ -133,7 +125,7 @@ func (w *PqWorker) Update() error {
 
 	// Get updatable fields
 	var updatableFields []Field
-	for _, field := range configuration.Fields {
+	for _, field := range w.Config.Fields {
 		if field.Updatable {
 			updatableFields = append(updatableFields, field)
 		}
@@ -142,7 +134,7 @@ func (w *PqWorker) Update() error {
 	// Generate Query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("UPDATE ")
-	queryBuffer.WriteString(configuration.TableName)
+	queryBuffer.WriteString(w.Config.TableName)
 	queryBuffer.WriteString(" SET ")
 	for i, field := range updatableFields {
 		queryBuffer.WriteString(field.Name)
@@ -170,13 +162,10 @@ func (w *PqWorker) Update() error {
 	return w.consumeRow(row)
 }
 
-func (w *PqWorker) Delete() error {
-	// Load Configuration
-	configuration := w.BaseModel.GetConfiguration()
-
+func (w PqWorker) Delete() error {
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
-	for _, field := range configuration.Fields {
+	for _, field := range w.Config.Fields {
 		if field.UniqueIdentifier {
 			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
 		}
@@ -199,7 +188,7 @@ func (w *PqWorker) Delete() error {
 	// Generate Query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("DELETE FROM ")
-	queryBuffer.WriteString(configuration.TableName)
+	queryBuffer.WriteString(w.Config.TableName)
 	queryBuffer.WriteString(" WHERE ")
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$1;")
@@ -218,7 +207,7 @@ func (w *PqWorker) Delete() error {
 }
 
 func (w *PqWorker) consumeRow(row *sql.Row) error {
-	fields := w.BaseModel.GetConfiguration().Fields
+	fields := w.Config.Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
 		s[i] = value.Pointer
@@ -227,7 +216,7 @@ func (w *PqWorker) consumeRow(row *sql.Row) error {
 }
 
 func (w *PqWorker) consumeNextRow(rows *sql.Rows) error {
-	fields := w.BaseModel.GetConfiguration().Fields
+	fields := w.Config.Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
 		s[i] = value.Pointer
