@@ -95,7 +95,7 @@ A `druge.Configuration` has two fields, `TableName` and `Fields`.
 
 `TableName` is simply a string that represents your table/collection name in your datastore.
 
-`Fields` is an array of `drudge.Field` (which is explained in detail [below](#drudge-field)).
+`Fields` is an array of `drudge.Field` (which is explained in detail [below](#drudgefield)).
 
 ## drudge.Field
 
