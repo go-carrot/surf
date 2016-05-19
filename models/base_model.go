@@ -6,6 +6,7 @@ import (
 	"errors"
 	db "github.com/BrandonRomano/drudge/database"
 	"strconv"
+	"fmt"
 )
 
 type Configuration struct {
@@ -193,6 +194,58 @@ func (dbw DbWorker) Update() error {
 	// Sending off query
 	row := database.QueryRow(queryBuffer.String(), valueFields...)
 	return dbw.consumeRow(row)
+}
+
+func (dbw DbWorker) Delete() error {
+	// Load Configuration
+	configuration := dbw.BaseModel.GetConfiguration()
+
+	// Get Database
+	database := db.Get()
+
+	// Get unique identifier fields
+	var uniqueIdentifierFields []Field
+	for _, field := range configuration.Fields {
+		if field.UniqueIdentifier {
+			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
+		}
+	}
+
+	// Determine which unique identifier we will be querying with
+	var uniqueIdentifierField Field
+	for _, field := range uniqueIdentifierFields {
+		// If we haven't explicitly determined that a field isn't set,
+		// assume that this will be the field we will be using
+		if field.IsSet == nil || field.IsSet(field.Pointer) {
+			uniqueIdentifierField = field
+			break
+		}
+	}
+	if uniqueIdentifierField.Pointer == nil {
+		return errors.New("No unique identifier was set, so we can't update this model") // TODO
+	}
+
+	// Generate Query
+	var queryBuffer bytes.Buffer
+	queryBuffer.WriteString("DELETE FROM ")
+	queryBuffer.WriteString(configuration.TableName)
+	queryBuffer.WriteString(" WHERE ")
+	queryBuffer.WriteString(uniqueIdentifierField.Name)
+	queryBuffer.WriteString("=$1;")
+
+	fmt.Println(queryBuffer.String())
+
+	// Executing Query
+	res, err := database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
+	if err != nil {
+		return err
+	}
+	numRows, _ := res.RowsAffected()
+	if numRows != 1 {
+		return errors.New("Nothing was deleted")
+	}
+
+	return nil
 }
 
 func (dbw *DbWorker) consumeRow(row *sql.Row) error {

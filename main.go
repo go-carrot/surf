@@ -41,4 +41,7 @@ func main() {
 	rigbyTwo.Age = 1
 	rigbyTwo.DbWorker.Update()
 	fmt.Println(rigbyTwo)
+
+	fmt.Println("-----")
+	rigbyTwo.DbWorker.Delete()
 }
