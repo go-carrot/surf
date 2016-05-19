@@ -1,0 +1,20 @@
+# IntelliJ
+.idea/*
+drudge.iml
+
+# Go vendor files
+vendor
+_vendor
+
+# Executable
+api
+
+# Mac Files
+*.DS_Store
+
+# Environment Files
+.env.*
+!.env.sample
+
+# Vim swp files
+*.swp
