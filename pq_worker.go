@@ -1,38 +1,19 @@
-package models
+package drudge
 
 import (
 	"bytes"
 	"database/sql"
-	"errors"
-	db "github.com/BrandonRomano/drudge/database"
 	"strconv"
-	"fmt"
+	"errors"
 )
 
-type Configuration struct {
-	TableName string
-	Fields    []Field
-}
-
-type Field struct {
-	Pointer          interface{}
-	Name             string
-	Insertable       bool
-	Updatable        bool
-	UniqueIdentifier bool
-	IsSet            func(interface{}) bool
-}
-
-type BaseModel interface {
-	GetConfiguration() Configuration
-}
-
-type DbWorker struct {
+type PqWorker struct {
 	BaseModel BaseModel
+	Database  *sql.DB
 }
 
-func (dbw *DbWorker) Insert() error {
-	configuration := dbw.BaseModel.GetConfiguration()
+func (w *PqWorker) Insert() error {
+	configuration := w.BaseModel.GetConfiguration()
 
 	// Get insertable fields
 	var insertableFields []Field
@@ -71,21 +52,17 @@ func (dbw *DbWorker) Insert() error {
 	}
 
 	// Firing off Query
-	database := db.Get()
-	row := database.QueryRow(
+	row := w.Database.QueryRow(
 		queryBuffer.String(),
 		valueFields...,
 	)
 
-	return dbw.consumeRow(row)
+	return w.consumeRow(row)
 }
 
-func (dbw *DbWorker) Load() error {
+func (w *PqWorker) Load() error {
 	// Load Configuration
-	configuration := dbw.BaseModel.GetConfiguration()
-
-	// Get Database
-	database := db.Get()
+	configuration := w.BaseModel.GetConfiguration()
 
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
@@ -109,11 +86,11 @@ func (dbw *DbWorker) Load() error {
 		queryBuffer.WriteString(field.Name)
 		queryBuffer.WriteString("=$1;")
 
-		row := database.QueryRow(
+		row := w.Database.QueryRow(
 			queryBuffer.String(),
 			field.Pointer,
 		)
-		err := dbw.consumeRow(row)
+		err := w.consumeRow(row)
 		if err != nil {
 			return nil
 		} else {
@@ -128,12 +105,9 @@ func (dbw *DbWorker) Load() error {
 	return errors.New("No UniqueIdentifier fields found that are set") // TODO
 }
 
-func (dbw DbWorker) Update() error {
+func (w PqWorker) Update() error {
 	// Load Configuration
-	configuration := dbw.BaseModel.GetConfiguration()
-
-	// Get Database
-	database := db.Get()
+	configuration := w.BaseModel.GetConfiguration()
 
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
@@ -192,16 +166,13 @@ func (dbw DbWorker) Update() error {
 	valueFields = append(valueFields, uniqueIdentifierField.Pointer)
 
 	// Sending off query
-	row := database.QueryRow(queryBuffer.String(), valueFields...)
-	return dbw.consumeRow(row)
+	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
+	return w.consumeRow(row)
 }
 
-func (dbw DbWorker) Delete() error {
+func (w PqWorker) Delete() error {
 	// Load Configuration
-	configuration := dbw.BaseModel.GetConfiguration()
-
-	// Get Database
-	database := db.Get()
+	configuration := w.BaseModel.GetConfiguration()
 
 	// Get unique identifier fields
 	var uniqueIdentifierFields []Field
@@ -233,10 +204,8 @@ func (dbw DbWorker) Delete() error {
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$1;")
 
-	fmt.Println(queryBuffer.String())
-
 	// Executing Query
-	res, err := database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
+	res, err := w.Database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
 	if err != nil {
 		return err
 	}
@@ -248,8 +217,8 @@ func (dbw DbWorker) Delete() error {
 	return nil
 }
 
-func (dbw *DbWorker) consumeRow(row *sql.Row) error {
-	fields := dbw.BaseModel.GetConfiguration().Fields
+func (w *PqWorker) consumeRow(row *sql.Row) error {
+	fields := w.BaseModel.GetConfiguration().Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
 		s[i] = value.Pointer
@@ -257,8 +226,8 @@ func (dbw *DbWorker) consumeRow(row *sql.Row) error {
 	return row.Scan(s...)
 }
 
-func (dbw *DbWorker) consumeNextRow(rows *sql.Rows) error {
-	fields := dbw.BaseModel.GetConfiguration().Fields
+func (w *PqWorker) consumeNextRow(rows *sql.Rows) error {
+	fields := w.BaseModel.GetConfiguration().Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
 		s[i] = value.Pointer
