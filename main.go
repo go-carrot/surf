@@ -34,4 +34,11 @@ func main() {
 	fmt.Println(rigbyTwo)
 	rigbyTwo.DbWorker.Load()
 	fmt.Println(rigbyTwo)
+
+	fmt.Println("-------")
+
+	rigbyTwo.Name = "Norbert"
+	rigbyTwo.Age = 1
+	rigbyTwo.DbWorker.Update()
+	fmt.Println(rigbyTwo)
 }

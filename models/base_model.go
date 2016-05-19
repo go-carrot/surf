@@ -3,6 +3,7 @@ package models
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	db "github.com/BrandonRomano/drudge/database"
 	"strconv"
 )
@@ -16,7 +17,9 @@ type Field struct {
 	Pointer          interface{}
 	Name             string
 	Insertable       bool
+	Updatable        bool
 	UniqueIdentifier bool
+	IsSet            func(interface{}) bool
 }
 
 type BaseModel interface {
@@ -80,6 +83,7 @@ func (dbw *DbWorker) Load() error {
 	// Load Configuration
 	configuration := dbw.BaseModel.GetConfiguration()
 
+	// Get Database
 	database := db.Get()
 
 	// Get unique identifier fields
@@ -92,10 +96,11 @@ func (dbw *DbWorker) Load() error {
 	}
 
 	for i, field := range uniqueIdentifierFields {
-		// TODO add test to see if we should run this, don't blindly run every query
-		// else slugs will always take 2 querys from the database
-		// need a way to tell if these are null or not before doing this...  Needs
-		// a unified nullable interface with a isNull() method
+		// If we've explicitly determined that the field isn't set, continue
+		if field.IsSet != nil && !field.IsSet(field.Pointer) {
+			continue
+		}
+
 		var queryBuffer bytes.Buffer
 		queryBuffer.WriteString("SELECT * FROM ")
 		queryBuffer.WriteString(configuration.TableName)
@@ -118,11 +123,79 @@ func (dbw *DbWorker) Load() error {
 			}
 		}
 	}
-	// Impossible to reach, just satisfying the compiler
-	return nil
+	// No fields set
+	return errors.New("No UniqueIdentifier fields found that are set") // TODO
 }
 
-func (dbw DbWorker) consumeRow(row *sql.Row) error {
+func (dbw DbWorker) Update() error {
+	// Load Configuration
+	configuration := dbw.BaseModel.GetConfiguration()
+
+	// Get Database
+	database := db.Get()
+
+	// Get unique identifier fields
+	var uniqueIdentifierFields []Field
+	for _, field := range configuration.Fields {
+		if field.UniqueIdentifier {
+			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
+		}
+	}
+
+	// Determine which unique identifier we will be querying with
+	var uniqueIdentifierField Field
+	for _, field := range uniqueIdentifierFields {
+		// If we haven't explicitly determined that a field isn't set,
+		// assume that this will be the field we will be using
+		if field.IsSet == nil || field.IsSet(field.Pointer) {
+			uniqueIdentifierField = field
+			break
+		}
+	}
+	if uniqueIdentifierField.Pointer == nil {
+		return errors.New("No unique identifier was set, so we can't update this model") //TODO
+	}
+
+	// Get updatable fields
+	var updatableFields []Field
+	for _, field := range configuration.Fields {
+		if field.Updatable {
+			updatableFields = append(updatableFields, field)
+		}
+	}
+
+	// Generate Query
+	var queryBuffer bytes.Buffer
+	queryBuffer.WriteString("UPDATE ")
+	queryBuffer.WriteString(configuration.TableName)
+	queryBuffer.WriteString(" SET ")
+	for i, field := range updatableFields {
+		queryBuffer.WriteString(field.Name)
+		queryBuffer.WriteString("=$")
+		queryBuffer.WriteString(strconv.Itoa(i + 1))
+		if (i + 1) < len(updatableFields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(" WHERE ")
+	queryBuffer.WriteString(uniqueIdentifierField.Name)
+	queryBuffer.WriteString("=$")
+	queryBuffer.WriteString(strconv.Itoa(len(updatableFields) + 1))
+	queryBuffer.WriteString(" RETURNING *;")
+
+	// Get Value Fields
+	var valueFields []interface{}
+	for _, value := range updatableFields {
+		valueFields = append(valueFields, value.Pointer)
+	}
+	valueFields = append(valueFields, uniqueIdentifierField.Pointer)
+
+	// Sending off query
+	row := database.QueryRow(queryBuffer.String(), valueFields...)
+	return dbw.consumeRow(row)
+}
+
+func (dbw *DbWorker) consumeRow(row *sql.Row) error {
 	fields := dbw.BaseModel.GetConfiguration().Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
@@ -131,7 +204,7 @@ func (dbw DbWorker) consumeRow(row *sql.Row) error {
 	return row.Scan(s...)
 }
 
-func (dbw DbWorker) consumeNextRow(rows *sql.Rows) error {
+func (dbw *DbWorker) consumeNextRow(rows *sql.Rows) error {
 	fields := dbw.BaseModel.GetConfiguration().Fields
 	s := make([]interface{}, 3)
 	for i, value := range fields {
