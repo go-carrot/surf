@@ -3,13 +3,13 @@ package drudge
 import (
 	"bytes"
 	"database/sql"
-	"strconv"
 	"errors"
+	"strconv"
 )
 
 type PqWorker struct {
-	BaseModel BaseModel
-	Database  *sql.DB
+	BaseModel BaseModel `json:"-"`
+	Database  *sql.DB   `json:"-"`
 }
 
 func (w *PqWorker) Insert() error {
@@ -105,7 +105,7 @@ func (w *PqWorker) Load() error {
 	return errors.New("No UniqueIdentifier fields found that are set") // TODO
 }
 
-func (w PqWorker) Update() error {
+func (w *PqWorker) Update() error {
 	// Load Configuration
 	configuration := w.BaseModel.GetConfiguration()
 
@@ -170,7 +170,7 @@ func (w PqWorker) Update() error {
 	return w.consumeRow(row)
 }
 
-func (w PqWorker) Delete() error {
+func (w *PqWorker) Delete() error {
 	// Load Configuration
 	configuration := w.BaseModel.GetConfiguration()
 
