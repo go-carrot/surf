@@ -2,6 +2,30 @@
 
 Drudge is a high level datastore worker that provides CRUD operations for your models.
 
+## In Use
+
+Before I dive into explaining how to use this library, let me first show an example of how you will interface with your models after everthing is set up:
+
+```go
+// Inserts
+rigby := models.NewAnimal()
+rigby.Name = "Rigby"
+rigby.Age = 3
+rigby.Insert()
+
+// Loads
+rigbyCopy := models.NewAnimal()
+rigbyCopy.Id = rigby.Id
+rigbyTwo.Load() // After this, rigbyCopy's Name will be "Rigby" and Age will be 3 (pulled from the database)
+
+// Updates
+rigbyCopy.Age = 4
+rigbyCopy.Update() // Updates Age in the database
+
+// Deletes
+rigbyCopy.Delete() // Deletes from the database
+```
+
 ## Getting Started
 
 ### Setting up a basic Model
