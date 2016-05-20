@@ -45,7 +45,7 @@ func NewAnimal() *Animal {
 
 func (a *Animal) Prep() *Animal {
     a.Worker = &drudge.PqWorker{
-		Database: db.Get(),
+		Database: db.Get(), // This is a *sql.DB, with github.com/lib/pq as a driver
 		Config: // TODO
 	}
     return a
