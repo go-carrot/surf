@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"strconv"
+	"fmt"
 )
 
 type PqWorker struct {
@@ -12,8 +13,9 @@ type PqWorker struct {
 	Config   Configuration `json:"-"`
 }
 
+// Insert inserts the model into the database
 func (w *PqWorker) Insert() error {
-	// Get insertable fields
+	// Get Insertable Fields
 	var insertableFields []Field
 	allFields := w.Config.Fields
 	for _, field := range allFields {
@@ -22,7 +24,7 @@ func (w *PqWorker) Insert() error {
 		}
 	}
 
-	// Building Query
+	// Generate Query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("INSERT INTO ")
 	queryBuffer.WriteString(w.Config.TableName)
@@ -49,78 +51,39 @@ func (w *PqWorker) Insert() error {
 		valueFields = append(valueFields, value.Pointer)
 	}
 
-	// Firing off Query
-	row := w.Database.QueryRow(
-		queryBuffer.String(),
-		valueFields...,
-	)
-
+	// Execute Query
+	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
 	return w.consumeRow(row)
 }
 
+// Load loads the model from the database from its unique identifier
+// and then loads those values into the struct
 func (w *PqWorker) Load() error {
-	// Get unique identifier fields
-	var uniqueIdentifierFields []Field
-	allFields := w.Config.Fields
-	for _, field := range allFields {
-		if field.UniqueIdentifier {
-			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
-		}
+	// Get Unique Identifier
+	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	if err != nil {
+		return err
 	}
 
-	for i, field := range uniqueIdentifierFields {
-		// If we've explicitly determined that the field isn't set, continue
-		if field.IsSet != nil && !field.IsSet(field.Pointer) {
-			continue
-		}
+	// Generate Query
+	var queryBuffer bytes.Buffer
+	queryBuffer.WriteString("SELECT * FROM ")
+	queryBuffer.WriteString(w.Config.TableName)
+	queryBuffer.WriteString(" WHERE ")
+	queryBuffer.WriteString(uniqueIdentifierField.Name)
+	queryBuffer.WriteString("=$1;")
 
-		var queryBuffer bytes.Buffer
-		queryBuffer.WriteString("SELECT * FROM ")
-		queryBuffer.WriteString(w.Config.TableName)
-		queryBuffer.WriteString(" WHERE ")
-		queryBuffer.WriteString(field.Name)
-		queryBuffer.WriteString("=$1;")
-
-		row := w.Database.QueryRow(
-			queryBuffer.String(),
-			field.Pointer,
-		)
-		err := w.consumeRow(row)
-		if err != nil {
-			return nil
-		} else {
-			if (i + 1) >= len(uniqueIdentifierFields) {
-				return err
-			} else {
-				continue
-			}
-		}
-	}
-	// No fields set
-	return errors.New("No UniqueIdentifier fields found that are set") // TODO
+	// Execute Query
+	row := w.Database.QueryRow(queryBuffer.String(), uniqueIdentifierField.Pointer)
+	return w.consumeRow(row)
 }
 
+// Update updates the model with the current values in the struct
 func (w *PqWorker) Update() error {
-	// Get unique identifier fields
-	var uniqueIdentifierFields []Field
-	for _, field := range w.Config.Fields {
-		if field.UniqueIdentifier {
-			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
-		}
-	}
-
-	// Determine which unique identifier we will be querying with
-	var uniqueIdentifierField Field
-	for _, field := range uniqueIdentifierFields {
-		// If we haven't explicitly determined that a field isn't set,
-		// assume that this will be the field we will be using
-		if field.IsSet == nil || field.IsSet(field.Pointer) {
-			uniqueIdentifierField = field
-			break
-		}
-	}
-	if uniqueIdentifierField.Pointer == nil {
-		return errors.New("No unique identifier was set, so we can't update this model") //TODO
+	// Get Unique Identifier
+	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	if err != nil {
+		return err
 	}
 
 	// Get updatable fields
@@ -157,32 +120,17 @@ func (w *PqWorker) Update() error {
 	}
 	valueFields = append(valueFields, uniqueIdentifierField.Pointer)
 
-	// Sending off query
+	// Execute Query
 	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
 	return w.consumeRow(row)
 }
 
+// Delete deletes the model
 func (w PqWorker) Delete() error {
-	// Get unique identifier fields
-	var uniqueIdentifierFields []Field
-	for _, field := range w.Config.Fields {
-		if field.UniqueIdentifier {
-			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
-		}
-	}
-
-	// Determine which unique identifier we will be querying with
-	var uniqueIdentifierField Field
-	for _, field := range uniqueIdentifierFields {
-		// If we haven't explicitly determined that a field isn't set,
-		// assume that this will be the field we will be using
-		if field.IsSet == nil || field.IsSet(field.Pointer) {
-			uniqueIdentifierField = field
-			break
-		}
-	}
-	if uniqueIdentifierField.Pointer == nil {
-		return errors.New("No unique identifier was set, so we can't update this model") // TODO
+	// Get Unique Identifier
+	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	if err != nil {
+		return err
 	}
 
 	// Generate Query
@@ -193,7 +141,7 @@ func (w PqWorker) Delete() error {
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$1;")
 
-	// Executing Query
+	// Execute Query
 	res, err := w.Database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
 	if err != nil {
 		return err
@@ -202,10 +150,48 @@ func (w PqWorker) Delete() error {
 	if numRows != 1 {
 		return errors.New("Nothing was deleted")
 	}
-
 	return nil
 }
 
+// getUniqueIdentifier Returns the unique identifier that this worker will
+// query against.
+//
+// This will return the first field in Configuration.Fields that:
+//   - Has `UniqueIdentifier` set to true
+//   - Returns true from `IsSet`
+//
+// This function will panic in the event that it encounters a field that is a
+// `UniqueIdentifier`, and doesn't have `IsSet` implemented.
+func (w *PqWorker) getUniqueIdentifier() (Field, error) {
+	// Get all unique identifier fields
+	var uniqueIdentifierFields []Field
+	for _, field := range w.Config.Fields {
+		if field.UniqueIdentifier {
+			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
+		}
+	}
+
+	// Determine which unique identifier we will be querying with
+	var uniqueIdentifierField Field
+	for _, field := range uniqueIdentifierFields {
+		if field.IsSet == nil {
+			panic(fmt.Sprintf("Field `%v` must implement IsSet, as it is a `UniqueIdentifier`", field.Name))
+		} else if(field.IsSet(field.Pointer)) {
+			uniqueIdentifierField = field
+			break
+		}
+	}
+
+	// Return
+	if uniqueIdentifierField.Pointer == nil {
+		return uniqueIdentifierField, errors.New("There is no UniqueIdentifier Field that is set")
+	} else {
+		return uniqueIdentifierField, nil
+	}
+}
+
+// consumeRow Scans a *sql.Row into our struct
+// that is using this worker
 func (w *PqWorker) consumeRow(row *sql.Row) error {
 	fields := w.Config.Fields
 	s := make([]interface{}, 3)
@@ -215,6 +201,8 @@ func (w *PqWorker) consumeRow(row *sql.Row) error {
 	return row.Scan(s...)
 }
 
+// consumeNextRow Scans a *sql.Rows into our struct
+// that is using this worker
 func (w *PqWorker) consumeNextRow(rows *sql.Rows) error {
 	fields := w.Config.Fields
 	s := make([]interface{}, 3)
