@@ -198,6 +198,27 @@ type Worker interface {
 
 `drudge.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
 
+## Running Tests
+
+Before running tests, you must set up a database with a single table.
+
+```sql
+CREATE TABLE animals(
+    id    serial          PRIMARY KEY,
+    slug  TEXT            UNIQUE NOT NULL,
+    name  TEXT            NOT NULL,
+    age   int             NOT NULL
+);
+```
+
+You'll then need to have an environment variable set pointing to the database URL:
+
+```
+DRUDGE_TEST_DATABASE_URL=""
+```
+
+After this is all set up you can run `go test` the following to run the tests.  To check the coverage run `go test -cover`
+
 ## Acknowledgements
 
 Thanks to [@roideuniverse](https://github.com/roideuniverse) for some early guidance that ultimately lead into the creation of this library.
