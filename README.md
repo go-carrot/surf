@@ -45,51 +45,55 @@ func NewAnimal() *Animal {
 
 func (a *Animal) Prep() *Animal {
     a.Worker = &drudge.PqWorker{
-        BaseModel: a,
-        Database:  db.Get(), // This is an instance of *sql.DB
-    }
+		Database: db.Get(),
+		Config: // TODO
+	}
     return a
 }
 ```
 
-### Implement drudge.BaseModel
+### Setting up Config
 
-The last step in setting up your model is actually to implement `drudge.BaseModel`, which only has one method `GetConfiguration() drudge.Configuration`.  This method defines how this specific model will interact with our `drudge.Worker`.
+You'll notice in the last code snippet in the previous section, there is a `// TODO` mark.
 
-This might feel like a lot, but I will break it down below:
+In that `Prep` method, we still need to define the Config.
+
+Before going into detail, here is the `Prep` method with a fully filled out Config.
 
 ```go
-func (a *Animal) GetConfiguration() drudge.Configuration {
-    return drudge.Configuration{
-        TableName: "animals",
-        Fields: []drudge.Field{
-            drudge.Field{
-                Pointer:          &a.Id,
-                Name:             "id",
-                UniqueIdentifier: true,
-                IsSet: func(pointer interface{}) bool {
-                    pointerInt := *pointer.(*int)
-                    return pointerInt != 0
-                },
-            },
-            drudge.Field{
-                Pointer:    &a.Name,
-                Name:       "name",
-                Insertable: true,
-                Updatable:  true,
-            },
-            drudge.Field{
-                Pointer:    &a.Age,
-                Name:       "age",
-                Insertable: true,
-                Updatable:  true,
-            },
-        },
-    }
+func (a *Animal) Prep() *Animal {
+	a.Worker = &drudge.PqWorker{
+		Database: db.Get(),
+		Config: drudge.Configuration{
+			TableName: "animals",
+			Fields: []drudge.Field{
+				drudge.Field{
+					Pointer:          &a.Id,
+					Name:             "id",
+					UniqueIdentifier: true,
+					IsSet: func(pointer interface{}) bool {
+						pointerInt := *pointer.(*int)
+						return pointerInt != 0
+					},
+				},
+				drudge.Field{
+					Pointer:    &a.Name,
+					Name:       "name",
+					Insertable: true,
+					Updatable:  true,
+				},
+				drudge.Field{
+					Pointer:    &a.Age,
+					Name:       "age",
+					Insertable: true,
+					Updatable:  true,
+				},
+			},
+		},
+	}
+	return a
 }
 ```
-
-So this GetConfiguration method expects you to return a `drudge.Configuration` object.
 
 A `druge.Configuration` has two fields, `TableName` and `Fields`.
 
