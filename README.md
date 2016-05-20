@@ -174,6 +174,10 @@ type Worker interface {
 
 `drudge.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
 
+## Acknowledgements
+
+Thanks to [@roideuniverse](https://github.com/roideuniverse) for some early guidance that ultimately lead into the creation of this library.
+
 ## License
 
 [MIT](LICENSE.md)
