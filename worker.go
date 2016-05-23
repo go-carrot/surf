@@ -1,4 +1,4 @@
-package drudge
+package serf
 
 type Worker interface {
 	Insert() error

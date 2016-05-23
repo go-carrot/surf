@@ -1,6 +1,6 @@
-# Drudge
+# Serf
 
-Drudge is a high level datastore worker that provides CRUD operations for your models.
+Serf is a high level datastore worker that provides CRUD operations for your models.
 
 ## In Use
 
@@ -40,26 +40,26 @@ type Animal struct {
 }
 ```
 
-### Embed a drudge.Worker
+### Embed a serf.Worker
 
-After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `drudge.Worker` into our model.
+After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `serf.Worker` into our model.
 
 ```go
 type Animal struct {
-    drudge.Worker
+    serf.Worker
     Id   int    `json:"id"`
     Name string `json:"name"`
     Age  int    `json:"age"`
 }
 ```
 
-A `drudge.Worker` is actually just an interface, so we'll need to decide what type of worker we want to use!
+A `serf.Worker` is actually just an interface, so we'll need to decide what type of worker we want to use!
 
-> There's more information [below](#workers) on `drudge.Worker`.
+> There's more information [below](#workers) on `serf.Worker`.
 
-For this example, we are going to be using a `drudge.PqWorker`.
+For this example, we are going to be using a `serf.PqWorker`.
 
-You can make the decision of what `drudge.Worker` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
+You can make the decision of what `serf.Worker` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
 
 ```go
 func NewAnimal() *Animal {
@@ -68,7 +68,7 @@ func NewAnimal() *Animal {
 }
 
 func (a *Animal) Prep() *Animal {
-    a.Worker = &drudge.PqWorker{
+    a.Worker = &serf.PqWorker{
 		Database: db.Get(), // This is a *sql.DB, with github.com/lib/pq as a driver
 		Config: // TODO
 	}
@@ -86,12 +86,12 @@ Before going into detail, here is the `Prep` method with a fully filled out Conf
 
 ```go
 func (a *Animal) Prep() *Animal {
-	a.Worker = &drudge.PqWorker{
+	a.Worker = &serf.PqWorker{
 		Database: db.Get(),
-		Config: drudge.Configuration{
+		Config: serf.Configuration{
 			TableName: "animals",
-			Fields: []drudge.Field{
-				drudge.Field{
+			Fields: []serf.Field{
+				serf.Field{
 					Pointer:          &a.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -100,13 +100,13 @@ func (a *Animal) Prep() *Animal {
 						return pointerInt != 0
 					},
 				},
-				drudge.Field{
+				serf.Field{
 					Pointer:    &a.Name,
 					Name:       "name",
 					Insertable: true,
 					Updatable:  true,
 				},
-				drudge.Field{
+				serf.Field{
 					Pointer:    &a.Age,
 					Name:       "age",
 					Insertable: true,
@@ -119,21 +119,21 @@ func (a *Animal) Prep() *Animal {
 }
 ```
 
-A `druge.Configuration` has two fields, `TableName` and `Fields`.
+A `serf.Configuration` has two fields, `TableName` and `Fields`.
 
 `TableName` is simply a string that represents your table/collection name in your datastore.
 
-`Fields` is an array of `drudge.Field` (which is explained in detail [below](#drudgefield)).
+`Fields` is an array of `serf.Field` (which is explained in detail [below](#serffield)).
 
-## drudge.Field
+## serf.Field
 
-A `drudge.Field` defines how a `drudge.Worker` will interact with a field.
+A `serf.Field` defines how a `serf.Worker` will interact with a field.
 
-a `drudge.Field` contains a few values that determine this interaction:
+a `serf.Field` contains a few values that determine this interaction:
 
 #### Pointer
 
-This is a pointer to the `drudge.BaseModel`'s field.
+This is a pointer to the `serf.BaseModel`'s field.
 
 #### Name
 
@@ -141,11 +141,11 @@ This is the name of the field as specified in the datastore.
 
 #### Insertable
 
-This value specifies if this `drudge.Field` is to be considered by the `Insert()` method of our worker.
+This value specifies if this `serf.Field` is to be considered by the `Insert()` method of our worker.
 
 #### Updatable
 
-This value specifies if this `drudge.Field` is to be considered by the `Update()` method of our worker.
+This value specifies if this `serf.Field` is to be considered by the `Update()` method of our worker.
 
 #### UniqueIdentifier
 
@@ -156,11 +156,11 @@ This value specifies that this field can unique identify an entry in the datasto
 You do not _need_ to set this to true for all of your `UNIQUE` fields in your datastore, but you can.
 
 Setting `UniqueIdentifier` to true gives you the following:
-    - The ability to set that fields value in the `drudge.BaseModel` and call `Load()` against it.
+    - The ability to set that fields value in the `serf.BaseModel` and call `Load()` against it.
     - Call `Update()` with this field in the where clause / filter
     - Call `Delete()` with this field in the where clause / filter.
 
-> If you are using a `drudge.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
+> If you are using a `serf.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
 
 #### IsSet
 
@@ -192,11 +192,11 @@ type Worker interface {
 }
 ```
 
-> Right now in this library there is only `drudge.PqWorker` written, but I plan to at minimum write a MySQL worker in the near future.
+> Right now in this library there is only `serf.PqWorker` written, but I plan to at minimum write a MySQL worker in the near future.
 
-### drudge.PqWorker
+### serf.PqWorker
 
-`drudge.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
+`serf.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
 
 ## Running Tests
 
@@ -214,7 +214,7 @@ CREATE TABLE animals(
 You'll then need to have an environment variable set pointing to the database URL:
 
 ```
-DRUDGE_TEST_DATABASE_URL=""
+SERF_TEST_DATABASE_URL=""
 ```
 
 After this is all set up you can run `go test` the following to run the tests.  To check the coverage run `go test -cover`
