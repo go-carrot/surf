@@ -1,5 +1,7 @@
 # Serf
 
+[![Build Status](https://travis-ci.org/BrandonRomano/serf.svg?branch=br.travis)](https://travis-ci.org/BrandonRomano/serf)
+
 Serf is a high level datastore worker that provides CRUD operations for your models.
 
 ## In Use
