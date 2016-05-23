@@ -1,6 +1,6 @@
 # IntelliJ
 .idea/*
-drudge.iml
+serf.iml
 
 # Go vendor files
 vendor
