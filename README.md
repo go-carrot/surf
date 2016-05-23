@@ -4,7 +4,7 @@
 
 Serf is a high level datastore worker that provides CRUD operations for your models.
 
-## In Use
+## In UseSERF_TEST_DATABASE_URL
 
 Before I dive into explaining how to use this library, let me first show an example of how you will interface with your models after everthing is set up:
 
@@ -215,7 +215,7 @@ CREATE TABLE animals(
 
 You'll then need to have an environment variable set pointing to the database URL:
 
-```
+```sh
 SERF_TEST_DATABASE_URL=""
 ```
 
