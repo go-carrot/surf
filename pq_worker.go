@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"database/sql"
 	"errors"
-	"strconv"
 	"fmt"
+	"strconv"
 )
 
 type PqWorker struct {
@@ -176,7 +176,7 @@ func (w *PqWorker) getUniqueIdentifier() (Field, error) {
 	for _, field := range uniqueIdentifierFields {
 		if field.IsSet == nil {
 			panic(fmt.Sprintf("Field `%v` must implement IsSet, as it is a `UniqueIdentifier`", field.Name))
-		} else if(field.IsSet(field.Pointer)) {
+		} else if field.IsSet(field.Pointer) {
 			uniqueIdentifierField = field
 			break
 		}
@@ -194,20 +194,9 @@ func (w *PqWorker) getUniqueIdentifier() (Field, error) {
 // that is using this worker
 func (w *PqWorker) consumeRow(row *sql.Row) error {
 	fields := w.Config.Fields
-	s := make([]interface{}, 3)
-	for i, value := range fields {
-		s[i] = value.Pointer
+	var s []interface{}
+	for _, value := range fields {
+		s = append(s, value.Pointer)
 	}
 	return row.Scan(s...)
-}
-
-// consumeNextRow Scans a *sql.Rows into our struct
-// that is using this worker
-func (w *PqWorker) consumeNextRow(rows *sql.Rows) error {
-	fields := w.Config.Fields
-	s := make([]interface{}, 3)
-	for i, value := range fields {
-		s[i] = value.Pointer
-	}
-	return rows.Scan(s...)
 }

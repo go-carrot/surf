@@ -13,7 +13,7 @@ api
 *.DS_Store
 
 # Environment Files
-.env.*
+.env*
 !.env.sample
 
 # Vim swp files
