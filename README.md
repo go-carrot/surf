@@ -1,6 +1,6 @@
 # Serf
 
-[![Build Status](https://travis-ci.org/BrandonRomano/serf.svg?branch=br.travis)](https://travis-ci.org/BrandonRomano/serf)
+[![Build Status](https://travis-ci.org/BrandonRomano/serf.svg?branch=br.travis)](https://travis-ci.org/BrandonRomano/serf) [![Coverage Status](https://coveralls.io/repos/github/BrandonRomano/serf/badge.svg?branch=br.coveralls)](https://coveralls.io/github/BrandonRomano/serf?branch=br.coveralls)
 
 Serf is a high level datastore worker that provides CRUD operations for your models.
 
