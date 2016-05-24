@@ -158,9 +158,10 @@ This value specifies that this field can unique identify an entry in the datasto
 You do not _need_ to set this to true for all of your `UNIQUE` fields in your datastore, but you can.
 
 Setting `UniqueIdentifier` to true gives you the following:
-    - The ability to set that fields value in the `serf.BaseModel` and call `Load()` against it.
-    - Call `Update()` with this field in the where clause / filter
-    - Call `Delete()` with this field in the where clause / filter.
+
+- The ability to set that fields value in the `serf.BaseModel` and call `Load()` against it.
+- Call `Update()` with this field in the where clause / filter
+- Call `Delete()` with this field in the where clause / filter.
 
 > If you are using a `serf.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
 
@@ -168,7 +169,7 @@ Setting `UniqueIdentifier` to true gives you the following:
 
 This is a function that determines if the value in the struct is set or not.
 
-This is only required if `UniqueIdentifier` is set.
+This is only required if `UniqueIdentifier` is set to `true`.
 
 This function will likely look something like this:
 
@@ -183,7 +184,7 @@ IsSet: func(pointer interface{}) bool {
 
 ## Workers
 
-Workers are simply implementations that adhere to this interface:
+Workers are simply implementations that adhere to the following interface:
 
 ```go
 type Worker interface {
