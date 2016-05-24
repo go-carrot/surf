@@ -10,22 +10,22 @@ Before I dive into explaining how to use this library, let me first show an exam
 
 ```go
 // Inserts
-rigby := models.NewAnimal()
-rigby.Name = "Rigby"
-rigby.Age = 3
-rigby.Insert()
+myAnimal := models.NewAnimal()
+myAnimal.Name = "Rigby"
+myAnimal.Age = 3
+myAnimal.Insert()
 
 // Loads
-rigbyCopy := models.NewAnimal()
-rigbyCopy.Id = rigby.Id
-rigbyTwo.Load() // After this, rigbyCopy's Name will be "Rigby" and Age will be 3 (pulled from the database)
+myAnimalCopy := models.NewAnimal()
+myAnimalCopy.Id = myAnimal.Id
+myAnimalCopy.Load() // After this, myAnimalCopy's Name will be "Rigby" and Age will be 3 (pulled from the database)
 
 // Updates
-rigbyCopy.Age = 4
-rigbyCopy.Update() // Updates Age in the database
+myAnimalCopy.Age = 4
+myAnimalCopy.Update() // Updates Age in the database
 
 // Deletes
-rigbyCopy.Delete() // Deletes from the database
+myAnimalCopy.Delete() // Deletes from the database
 ```
 
 ## Getting Started
