@@ -4,7 +4,7 @@
 
 Serf is a high level datastore worker that provides CRUD operations for your models.
 
-## In UseSERF_TEST_DATABASE_URL
+## In Use
 
 Before I dive into explaining how to use this library, let me first show an example of how you will interface with your models after everthing is set up:
 
