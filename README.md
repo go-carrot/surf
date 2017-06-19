@@ -1,8 +1,8 @@
-# Serf
+# Surf
 
-[![Build Status](https://travis-ci.org/BrandonRomano/serf.svg?branch=br.travis)](https://travis-ci.org/BrandonRomano/serf) [![Coverage Status](https://coveralls.io/repos/github/BrandonRomano/serf/badge.svg?branch=br.coveralls)](https://coveralls.io/github/BrandonRomano/serf?branch=br.coveralls)
+[![Build Status](https://travis-ci.org/go-carrot/surf.svg?branch=master)](https://travis-ci.org/go-carrot/surf) [![codecov](https://codecov.io/gh/go-carrot/surf/branch/master/graph/badge.svg)](https://codecov.io/gh/go-carrot/surf)
 
-Serf is a high level datastore worker that provides CRUD operations for your models.
+Surf is a high level datastore worker that provides CRUD operations for your models.
 
 ## In Use
 
@@ -42,26 +42,26 @@ type Animal struct {
 }
 ```
 
-### Embed a serf.Worker
+### Embed a surf.Worker
 
-After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `serf.Worker` into our model.
+After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `surf.Worker` into our model.
 
 ```go
 type Animal struct {
-    serf.Worker
+    surf.Worker
     Id   int    `json:"id"`
     Name string `json:"name"`
     Age  int    `json:"age"`
 }
 ```
 
-A `serf.Worker` is actually just an interface, so we'll need to decide what type of worker we want to use!
+A `surf.Worker` is actually just an interface, so we'll need to decide what type of worker we want to use!
 
-> There's more information [below](#workers) on `serf.Worker`.
+> There's more information [below](#workers) on `surf.Worker`.
 
-For this example, we are going to be using a `serf.PqWorker`.
+For this example, we are going to be using a `surf.PqWorker`.
 
-You can make the decision of what `serf.Worker` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
+You can make the decision of what `surf.Worker` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
 
 ```go
 func NewAnimal() *Animal {
@@ -70,7 +70,7 @@ func NewAnimal() *Animal {
 }
 
 func (a *Animal) Prep() *Animal {
-    a.Worker = &serf.PqWorker{
+    a.Worker = &surf.PqWorker{
 		Database: db.Get(), // This is a *sql.DB, with github.com/lib/pq as a driver
 		Config: // TODO
 	}
@@ -88,12 +88,12 @@ Before going into detail, here is the `Prep` method with a fully filled out Conf
 
 ```go
 func (a *Animal) Prep() *Animal {
-	a.Worker = &serf.PqWorker{
+	a.Worker = &surf.PqWorker{
 		Database: db.Get(),
-		Config: serf.Configuration{
+		Config: surf.Configuration{
 			TableName: "animals",
-			Fields: []serf.Field{
-				serf.Field{
+			Fields: []surf.Field{
+				surf.Field{
 					Pointer:          &a.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -102,13 +102,13 @@ func (a *Animal) Prep() *Animal {
 						return pointerInt != 0
 					},
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &a.Name,
 					Name:       "name",
 					Insertable: true,
 					Updatable:  true,
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &a.Age,
 					Name:       "age",
 					Insertable: true,
@@ -121,21 +121,21 @@ func (a *Animal) Prep() *Animal {
 }
 ```
 
-A `serf.Configuration` has two fields, `TableName` and `Fields`.
+A `surf.Configuration` has two fields, `TableName` and `Fields`.
 
 `TableName` is simply a string that represents your table/collection name in your datastore.
 
-`Fields` is an array of `serf.Field` (which is explained in detail [below](#serffield)).
+`Fields` is an array of `surf.Field` (which is explained in detail [below](#surffield)).
 
-## serf.Field
+## surf.Field
 
-A `serf.Field` defines how a `serf.Worker` will interact with a field.
+A `surf.Field` defines how a `surf.Worker` will interact with a field.
 
-a `serf.Field` contains a few values that determine this interaction:
+a `surf.Field` contains a few values that determine this interaction:
 
 #### Pointer
 
-This is a pointer to the `serf.BaseModel`'s field.
+This is a pointer to the `surf.BaseModel`'s field.
 
 #### Name
 
@@ -143,11 +143,11 @@ This is the name of the field as specified in the datastore.
 
 #### Insertable
 
-This value specifies if this `serf.Field` is to be considered by the `Insert()` method of our worker.
+This value specifies if this `surf.Field` is to be considered by the `Insert()` method of our worker.
 
 #### Updatable
 
-This value specifies if this `serf.Field` is to be considered by the `Update()` method of our worker.
+This value specifies if this `surf.Field` is to be considered by the `Update()` method of our worker.
 
 #### UniqueIdentifier
 
@@ -159,11 +159,11 @@ You do not _need_ to set this to true for all of your `UNIQUE` fields in your da
 
 Setting `UniqueIdentifier` to true gives you the following:
 
-- The ability to set that fields value in the `serf.BaseModel` and call `Load()` against it.
+- The ability to set that fields value in the `surf.BaseModel` and call `Load()` against it.
 - Call `Update()` with this field in the where clause / filter
 - Call `Delete()` with this field in the where clause / filter.
 
-> If you are using a `serf.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
+> If you are using a `surf.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
 
 #### IsSet
 
@@ -195,11 +195,11 @@ type Worker interface {
 }
 ```
 
-> Right now in this library there is only `serf.PqWorker` written, but I plan to at minimum write a MySQL worker in the near future.
+> Right now in this library there is only `surf.PqWorker` written, but I plan to at minimum write a MySQL worker in the near future.
 
-### serf.PqWorker
+### surf.PqWorker
 
-`serf.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
+`surf.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
 
 ## Running Tests
 
