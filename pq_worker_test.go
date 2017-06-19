@@ -1,8 +1,8 @@
-package serf_test
+package surf_test
 
 import (
 	"database/sql"
-	"github.com/BrandonRomano/serf"
+	"github.com/go-carrot/surf"
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
@@ -18,7 +18,7 @@ import (
 // as we are only using this model to intentionally create any error
 // in the database.
 type Place struct {
-	serf.Worker
+	surf.Worker
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -29,12 +29,12 @@ func NewPlace(dbConnection *sql.DB) *Place {
 }
 
 func (p *Place) Prep(dbConnection *sql.DB) *Place {
-	p.Worker = &serf.PqWorker{
+	p.Worker = &surf.PqWorker{
 		Database: dbConnection,
-		Config: serf.Configuration{
+		Config: surf.Configuration{
 			TableName: "place",
-			Fields: []serf.Field{
-				serf.Field{
+			Fields: []surf.Field{
+				surf.Field{
 					Pointer:          &p.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -43,7 +43,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 						return pointerInt != 0
 					},
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &p.Name,
 					Name:       "name",
 					Insertable: true,
@@ -62,7 +62,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 // There is no need to create a model for this in the database
 // as we are using this to test a failure before we even hit the db
 type Person struct {
-	serf.Worker
+	surf.Worker
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -73,12 +73,12 @@ func NewPerson(dbConnection *sql.DB) *Person {
 }
 
 func (p *Person) Prep(dbConnection *sql.DB) *Person {
-	p.Worker = &serf.PqWorker{
+	p.Worker = &surf.PqWorker{
 		Database: dbConnection,
-		Config: serf.Configuration{
+		Config: surf.Configuration{
 			TableName: "people",
-			Fields: []serf.Field{
-				serf.Field{
+			Fields: []surf.Field{
+				surf.Field{
 					Pointer:          &p.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -87,7 +87,7 @@ func (p *Person) Prep(dbConnection *sql.DB) *Person {
 					// to test the code-path for this to make sure
 					// we panic!
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &p.Name,
 					Name:       "name",
 					Insertable: true,
@@ -114,7 +114,7 @@ CREATE TABLE animals(
 );
 */
 type Animal struct {
-	serf.Worker
+	surf.Worker
 	Id   int    `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
@@ -127,12 +127,12 @@ func NewAnimal(dbConnection *sql.DB) *Animal {
 }
 
 func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
-	a.Worker = &serf.PqWorker{
+	a.Worker = &surf.PqWorker{
 		Database: dbConnection,
-		Config: serf.Configuration{
+		Config: surf.Configuration{
 			TableName: "animals",
-			Fields: []serf.Field{
-				serf.Field{
+			Fields: []surf.Field{
+				surf.Field{
 					Pointer:          &a.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -141,7 +141,7 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 						return pointerInt != 0
 					},
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:          &a.Slug,
 					Name:             "slug",
 					UniqueIdentifier: true,
@@ -152,13 +152,13 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 					Insertable: true,
 					Updatable:  true,
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &a.Name,
 					Name:       "name",
 					Insertable: true,
 					Updatable:  true,
 				},
-				serf.Field{
+				surf.Field{
 					Pointer:    &a.Age,
 					Name:       "age",
 					Insertable: true,

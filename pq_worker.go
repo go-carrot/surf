@@ -1,4 +1,4 @@
-package serf
+package surf
 
 import (
 	"bytes"
