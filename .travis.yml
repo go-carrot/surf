@@ -1,6 +1,24 @@
 language: go
 go:
   - 1.8
+services:
+  - postgresql
+before_script:
+  - |
+    psql \
+      --command='create database travis_ci_test;' \
+      --username='postgres'
+  - |
+    psql \
+      --command='
+        CREATE TABLE animals(
+          id serial PRIMARY KEY,
+          slug text NOT NULL UNIQUE,
+          name text NOT NULL,
+          age int NOT NULL
+        );' \
+      --username='postgres' \
+      --dbname='travis_ci_test'
 script:
   - go test -race -coverprofile=coverage.txt -covermode=atomic
 after_success:
