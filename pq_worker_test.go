@@ -180,7 +180,7 @@ type PqWorkerTestSuite struct {
 }
 
 func (suite *PqWorkerTestSuite) SetupTest() {
-	databaseUrl := os.Getenv("SERF_TEST_URL")
+	databaseUrl := os.Getenv("SERF_TEST_DATABASE_URL")
 
 	// Opening + storing the connection
 	db, err := sql.Open("postgres", databaseUrl)
