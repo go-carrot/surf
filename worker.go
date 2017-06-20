@@ -5,6 +5,7 @@ type Worker interface {
 	Load() error
 	Update() error
 	Delete() error
+	GetConfiguration() *Configuration
 }
 
 type Configuration struct {

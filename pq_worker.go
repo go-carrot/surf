@@ -13,6 +13,11 @@ type PqWorker struct {
 	Config   Configuration `json:"-"`
 }
 
+// GetConfiguration returns the configuration for the model
+func (w *PqWorker) GetConfiguration() *Configuration {
+	return &w.Config
+}
+
 // Insert inserts the model into the database
 func (w *PqWorker) Insert() error {
 	// Get Insertable Fields
