@@ -41,7 +41,7 @@ func (w *PqWorker) Insert() error {
 		}
 	}
 	queryBuffer.WriteString(") VALUES(")
-	for i, _ := range insertableFields {
+	for i := range insertableFields {
 		queryBuffer.WriteString("$")
 		queryBuffer.WriteString(strconv.Itoa(i + 1))
 		if (i + 1) < len(insertableFields) {
