@@ -1,7 +1,7 @@
 <a href="https://engineering.carrot.is/"><p align="center"><img src="https://cloud.githubusercontent.com/assets/2105067/24525319/d3d26516-1567-11e7-9506-7611b3287d53.png" alt="Go Carrot" width="350px" align="center;" /></p></a>
 # Surf
 
-[![Build Status](https://travis-ci.org/go-carrot/surf.svg?branch=master)](https://travis-ci.org/go-carrot/surf) [![codecov](https://codecov.io/gh/go-carrot/surf/branch/master/graph/badge.svg)](https://codecov.io/gh/go-carrot/surf)
+[![Build Status](https://travis-ci.org/go-carrot/surf.svg?branch=master)](https://travis-ci.org/go-carrot/surf) [![codecov](https://codecov.io/gh/go-carrot/surf/branch/master/graph/badge.svg)](https://codecov.io/gh/go-carrot/surf) [![Go Report Card](https://goreportcard.com/badge/github.com/go-carrot/surf)](https://goreportcard.com/report/github.com/go-carrot/surf) [![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/go-carrot/surf)
 
 Surf is a high level datastore worker that provides CRUD operations for your models.
 
