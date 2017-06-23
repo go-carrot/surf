@@ -34,7 +34,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 		Config: surf.Configuration{
 			TableName: "place",
 			Fields: []surf.Field{
-				surf.Field{
+				{
 					Pointer:          &p.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -43,7 +43,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 						return pointerInt != 0
 					},
 				},
-				surf.Field{
+				{
 					Pointer:    &p.Name,
 					Name:       "name",
 					Insertable: true,
@@ -78,7 +78,7 @@ func (p *Person) Prep(dbConnection *sql.DB) *Person {
 		Config: surf.Configuration{
 			TableName: "people",
 			Fields: []surf.Field{
-				surf.Field{
+				{
 					Pointer:          &p.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -87,7 +87,7 @@ func (p *Person) Prep(dbConnection *sql.DB) *Person {
 					// to test the code-path for this to make sure
 					// we panic!
 				},
-				surf.Field{
+				{
 					Pointer:    &p.Name,
 					Name:       "name",
 					Insertable: true,
@@ -132,7 +132,7 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 		Config: surf.Configuration{
 			TableName: "animals",
 			Fields: []surf.Field{
-				surf.Field{
+				{
 					Pointer:          &a.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -141,7 +141,7 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 						return pointerInt != 0
 					},
 				},
-				surf.Field{
+				{
 					Pointer:          &a.Slug,
 					Name:             "slug",
 					UniqueIdentifier: true,
@@ -152,13 +152,13 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 					Insertable: true,
 					Updatable:  true,
 				},
-				surf.Field{
+				{
 					Pointer:    &a.Name,
 					Name:       "name",
 					Insertable: true,
 					Updatable:  true,
 				},
-				surf.Field{
+				{
 					Pointer:    &a.Age,
 					Name:       "age",
 					Insertable: true,

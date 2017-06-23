@@ -8,6 +8,7 @@ import (
 	"strconv"
 )
 
+// PqWorker is a github.com/lib/pq implementation of a Worker
 type PqWorker struct {
 	Database *sql.DB       `json:"-"`
 	Config   Configuration `json:"-"`
@@ -41,7 +42,7 @@ func (w *PqWorker) Insert() error {
 		}
 	}
 	queryBuffer.WriteString(") VALUES(")
-	for i, _ := range insertableFields {
+	for i := range insertableFields {
 		queryBuffer.WriteString("$")
 		queryBuffer.WriteString(strconv.Itoa(i + 1))
 		if (i + 1) < len(insertableFields) {
@@ -190,9 +191,8 @@ func (w *PqWorker) getUniqueIdentifier() (Field, error) {
 	// Return
 	if uniqueIdentifierField.Pointer == nil {
 		return uniqueIdentifierField, errors.New("There is no UniqueIdentifier Field that is set")
-	} else {
-		return uniqueIdentifierField, nil
 	}
+	return uniqueIdentifierField, nil
 }
 
 // consumeRow Scans a *sql.Row into our struct
