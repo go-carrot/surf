@@ -356,6 +356,24 @@ func (suite *PqWorkerTestSuite) TestDeleteSqlError() {
 	assert.NotEqual(suite.T(), nil, err)
 }
 
+func (suite *PqWorkerTestSuite) TestGetConfiguration() {
+	config := NewAnimal(suite.db).GetConfiguration()
+	var hasId, hasSlug, hasName, hasAge bool
+	for _, field := range config.Fields {
+		switch field.Name {
+		case "id":
+			hasId = true
+		case "slug":
+			hasSlug = true
+		case "name":
+			hasName = true
+		case "age":
+			hasAge = true
+		}
+	}
+	assert.True(suite.T(), (hasId && hasSlug && hasName && hasAge))
+}
+
 // In order for 'go test' to run this suite, we need to create
 // a normal test function and pass our suite to suite.Run
 func TestPqWorkerTestSuite(t *testing.T) {
