@@ -3,11 +3,11 @@
 
 [![Build Status](https://travis-ci.org/go-carrot/surf.svg?branch=master)](https://travis-ci.org/go-carrot/surf) [![codecov](https://codecov.io/gh/go-carrot/surf/branch/master/graph/badge.svg)](https://codecov.io/gh/go-carrot/surf) [![Go Report Card](https://goreportcard.com/badge/github.com/go-carrot/surf)](https://goreportcard.com/report/github.com/go-carrot/surf) [![Gitter](https://img.shields.io/gitter/room/nwjs/nw.js.svg)](https://gitter.im/go-carrot/surf)
 
-Surf is a high level datastore worker that provides CRUD operations for your models.
+Declaratively convert structs into data access objects.
 
 ## In Use
 
-Before I dive into explaining how to use this library, let me first show an example of how you will interface with your models after everthing is set up:
+Before I dive into explaining how to use this library, let me first show an example of how you will interface with your models after everything is set up:
 
 ```go
 // Inserts
@@ -43,26 +43,26 @@ type Animal struct {
 }
 ```
 
-### Embed a surf.Worker
+### Embed a surf.Model
 
-After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `surf.Worker` into our model.
+After this is set up, we can now [embed](https://golang.org/doc/effective_go.html#embedding) a `surf.Model` into our model.
 
 ```go
 type Animal struct {
-    surf.Worker
+    surf.Model
     Id   int    `json:"id"`
     Name string `json:"name"`
     Age  int    `json:"age"`
 }
 ```
 
-A `surf.Worker` is actually just an interface, so we'll need to decide what type of worker we want to use!
+A `surf.Model` is actually just an interface, so we'll need to decide what type of model we want to use!
 
-> There's more information [below](#workers) on `surf.Worker`.
+> There's more information [below](#models) on `surf.Model`.
 
-For this example, we are going to be using a `surf.PqWorker`.
+For this example, we are going to be using a `surf.PqModel`.
 
-You can make the decision of what `surf.Worker` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
+You can make the decision of what `surf.Model` to pack into your model at run time, but it will probably be easiest to create a constructor type function and create your models through that.  Here I provide a constructor type fuction, but also a `Prep` function which will provide you the flexibility to not use the constructor.
 
 ```go
 func NewAnimal() *Animal {
@@ -71,7 +71,7 @@ func NewAnimal() *Animal {
 }
 
 func (a *Animal) Prep() *Animal {
-    a.Worker = &surf.PqWorker{
+    a.Model = &surf.PqModel{
 		Database: db.Get(), // This is a *sql.DB, with github.com/lib/pq as a driver
 		Config: // TODO
 	}
@@ -89,12 +89,12 @@ Before going into detail, here is the `Prep` method with a fully filled out Conf
 
 ```go
 func (a *Animal) Prep() *Animal {
-	a.Worker = &surf.PqWorker{
+	a.Model = &surf.PqModel{
 		Database: db.Get(),
 		Config: surf.Configuration{
 			TableName: "animals",
 			Fields: []surf.Field{
-				surf.Field{
+				{
 					Pointer:          &a.Id,
 					Name:             "id",
 					UniqueIdentifier: true,
@@ -103,13 +103,13 @@ func (a *Animal) Prep() *Animal {
 						return pointerInt != 0
 					},
 				},
-				surf.Field{
+				{
 					Pointer:    &a.Name,
 					Name:       "name",
 					Insertable: true,
 					Updatable:  true,
 				},
-				surf.Field{
+				{
 					Pointer:    &a.Age,
 					Name:       "age",
 					Insertable: true,
@@ -130,7 +130,7 @@ A `surf.Configuration` has two fields, `TableName` and `Fields`.
 
 ## surf.Field
 
-A `surf.Field` defines how a `surf.Worker` will interact with a field.
+A `surf.Field` defines how a `surf.Model` will interact with a field.
 
 a `surf.Field` contains a few values that determine this interaction:
 
@@ -144,11 +144,11 @@ This is the name of the field as specified in the datastore.
 
 #### Insertable
 
-This value specifies if this `surf.Field` is to be considered by the `Insert()` method of our worker.
+This value specifies if this `surf.Field` is to be considered by the `Insert()` method of our model.
 
 #### Updatable
 
-This value specifies if this `surf.Field` is to be considered by the `Update()` method of our worker.
+This value specifies if this `surf.Field` is to be considered by the `Update()` method of our model.
 
 #### UniqueIdentifier
 
@@ -163,8 +163,6 @@ Setting `UniqueIdentifier` to true gives you the following:
 - The ability to set that fields value in the `surf.BaseModel` and call `Load()` against it.
 - Call `Update()` with this field in the where clause / filter
 - Call `Delete()` with this field in the where clause / filter.
-
-> If you are using a `surf.Worker` that is backed by a relational database, it is strongly recommended that column is indexed.
 
 #### IsSet
 
@@ -183,24 +181,26 @@ IsSet: func(pointer interface{}) bool {
 // ...
 ```
 
-## Workers
+## Models
 
-Workers are simply implementations that adhere to the following interface:
+Models are simply implementations that adhere to the following interface:
 
 ```go
-type Worker interface {
+type Model interface {
     Insert() error
     Load() error
     Update() error
     Delete() error
+    BulkFetch(BulkFetchConfig, BuildModel) ([]Model, error)
+    GetConfiguration() *Configuration
 }
 ```
 
-> Right now in this library there is only `surf.PqWorker` written, but I plan to at minimum write a MySQL worker in the near future.
+> Right now in this library there is only `surf.PqModel` written, but I plan to at minimum write a MySQL model in the near future.
 
-### surf.PqWorker
+### surf.PqModel
 
-`surf.PqWorker` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This provides high level PostgreSQL CRUD operations to your models.
+`surf.PqModel` is written on top of [github.com/lib/pq](https://github.com/lib/pq).  This converts your struct into a DAO that can speak with PostgreSQL.
 
 ## Running Tests
 
