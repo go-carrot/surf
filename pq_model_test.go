@@ -18,7 +18,7 @@ import (
 // as we are only using this model to intentionally create any error
 // in the database.
 type Place struct {
-	*surf.PqModel
+	surf.Model
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -29,7 +29,7 @@ func NewPlace(dbConnection *sql.DB) *Place {
 }
 
 func (p *Place) Prep(dbConnection *sql.DB) *Place {
-	p.PqModel = &surf.PqModel{
+	p.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "place",
@@ -62,7 +62,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 // There is no need to create a model for this in the database
 // as we are using this to test a failure before we even hit the db
 type Person struct {
-	*surf.PqModel
+	surf.Model
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -73,7 +73,7 @@ func NewPerson(dbConnection *sql.DB) *Person {
 }
 
 func (p *Person) Prep(dbConnection *sql.DB) *Person {
-	p.PqModel = &surf.PqModel{
+	p.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "people",
@@ -114,7 +114,7 @@ CREATE TABLE animals(
 );
 */
 type Animal struct {
-	*surf.PqModel
+	surf.Model
 	Id   int    `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
@@ -127,7 +127,7 @@ func NewAnimal(dbConnection *sql.DB) *Animal {
 }
 
 func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
-	a.PqModel = &surf.PqModel{
+	a.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "animals",
@@ -179,7 +179,7 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 //
 // Intentionally using the wrong type for Name
 type AnimalConsume struct {
-	*surf.PqModel
+	surf.Model
 	Id   int    `json:"id"`
 	Slug string `json:"slug"`
 	Name int    `json:"name"`
@@ -192,7 +192,7 @@ func NewAnimalConsume(dbConnection *sql.DB) *AnimalConsume {
 }
 
 func (ac *AnimalConsume) Prep(dbConnection *sql.DB) *AnimalConsume {
-	ac.PqModel = &surf.PqModel{
+	ac.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "animals",
