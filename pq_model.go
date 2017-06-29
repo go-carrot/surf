@@ -204,15 +204,12 @@ func (w *PqModel) getUniqueIdentifier() (Field, error) {
 
 // BulkFetch gets an array of models
 func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) ([]Model, error) {
-	// Get config
-	modelConfig := buildModel().GetConfiguration()
-
 	// Generate Query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("SELECT ")
-	for i, field := range modelConfig.Fields {
+	for i, field := range w.Config.Fields {
 		queryBuffer.WriteString(field.Name)
-		if (i + 1) < len(modelConfig.Fields) {
+		if (i + 1) < len(w.Config.Fields) {
 			queryBuffer.WriteString(", ")
 		}
 	}
@@ -222,7 +219,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	for i, orderBy := range fetchConfig.OrderBys {
 		// Validate that the orderBy.Field is a field
 		valid := false
-		for _, field := range modelConfig.Fields {
+		for _, field := range w.Config.Fields {
 			if field.Name == orderBy.Field {
 				valid = true
 				break
@@ -230,7 +227,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 		}
 		if !valid {
 			return nil, fmt.Errorf("Could not order table '%v' by the invalid column '%v'",
-				modelConfig.TableName, orderBy.Field)
+				w.Config.TableName, orderBy.Field)
 		}
 		// Write to query
 		queryBuffer.WriteString(orderBy.ToString())
@@ -245,9 +242,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	queryBuffer.WriteString(";")
 
 	// Execute Query
-	query := queryBuffer.String()
-	fmt.Println(query)
-	rows, err := w.Database.Query(query)
+	rows, err := w.Database.Query(queryBuffer.String())
 	if err != nil {
 		return nil, err
 	}
@@ -255,11 +250,19 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	// Stuff into []Model
 	var models []Model
 	for rows.Next() {
-		model := buildModel().(SqlModel)
-		err := model.ConsumeRows(rows)
+		model := buildModel()
+
+		// Consume Rows
+		fields := model.GetConfiguration().Fields
+		var s []interface{}
+		for _, value := range fields {
+			s = append(s, value.Pointer)
+		}
+		err := rows.Scan(s...)
 		if err != nil {
 			return nil, err
 		}
+
 		models = append(models, model.(Model))
 	}
 
@@ -276,15 +279,4 @@ func (w *PqModel) ConsumeRow(row *sql.Row) error {
 		s = append(s, value.Pointer)
 	}
 	return row.Scan(s...)
-}
-
-// ConsumeRows Scans the next *sql.Rows into our struct
-// that is using this model
-func (w *PqModel) ConsumeRows(rows *sql.Rows) error {
-	fields := w.Config.Fields
-	var s []interface{}
-	for _, value := range fields {
-		s = append(s, value.Pointer)
-	}
-	return rows.Scan(s...)
 }

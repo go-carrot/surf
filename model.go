@@ -1,7 +1,5 @@
 package surf
 
-import "database/sql"
-
 // Model is the interface that defines the type
 // that will be embedded on models
 type Model interface {
@@ -11,14 +9,6 @@ type Model interface {
 	Delete() error
 	BulkFetch(BulkFetchConfig, BuildModel) ([]Model, error)
 	GetConfiguration() *Configuration
-}
-
-// SqlModel is a Model that also can handle the
-// consumption of both sql.Row and sql.Rows
-type SqlModel interface {
-	Model
-	ConsumeRow(row *sql.Row) error
-	ConsumeRows(rows *sql.Rows) error
 }
 
 // Configuration is the metadata to be attached to a model
