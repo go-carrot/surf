@@ -8,19 +8,19 @@ import (
 	"strconv"
 )
 
-// PqWorker is a github.com/lib/pq implementation of a Worker
-type PqWorker struct {
+// PqModel is a github.com/lib/pq implementation of a Model
+type PqModel struct {
 	Database *sql.DB       `json:"-"`
 	Config   Configuration `json:"-"`
 }
 
 // GetConfiguration returns the configuration for the model
-func (w *PqWorker) GetConfiguration() *Configuration {
+func (w *PqModel) GetConfiguration() *Configuration {
 	return &w.Config
 }
 
 // Insert inserts the model into the database
-func (w *PqWorker) Insert() error {
+func (w *PqModel) Insert() error {
 	// Get Insertable Fields
 	var insertableFields []Field
 	allFields := w.Config.Fields
@@ -59,12 +59,12 @@ func (w *PqWorker) Insert() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
-	return w.consumeRow(row)
+	return w.ConsumeRow(row)
 }
 
 // Load loads the model from the database from its unique identifier
 // and then loads those values into the struct
-func (w *PqWorker) Load() error {
+func (w *PqModel) Load() error {
 	// Get Unique Identifier
 	uniqueIdentifierField, err := w.getUniqueIdentifier()
 	if err != nil {
@@ -73,7 +73,14 @@ func (w *PqWorker) Load() error {
 
 	// Generate Query
 	var queryBuffer bytes.Buffer
-	queryBuffer.WriteString("SELECT * FROM ")
+	queryBuffer.WriteString("SELECT ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if (i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(" FROM ")
 	queryBuffer.WriteString(w.Config.TableName)
 	queryBuffer.WriteString(" WHERE ")
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
@@ -81,11 +88,11 @@ func (w *PqWorker) Load() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(queryBuffer.String(), uniqueIdentifierField.Pointer)
-	return w.consumeRow(row)
+	return w.ConsumeRow(row)
 }
 
 // Update updates the model with the current values in the struct
-func (w *PqWorker) Update() error {
+func (w *PqModel) Update() error {
 	// Get Unique Identifier
 	uniqueIdentifierField, err := w.getUniqueIdentifier()
 	if err != nil {
@@ -128,11 +135,11 @@ func (w *PqWorker) Update() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
-	return w.consumeRow(row)
+	return w.ConsumeRow(row)
 }
 
 // Delete deletes the model
-func (w PqWorker) Delete() error {
+func (w PqModel) Delete() error {
 	// Get Unique Identifier
 	uniqueIdentifierField, err := w.getUniqueIdentifier()
 	if err != nil {
@@ -159,7 +166,7 @@ func (w PqWorker) Delete() error {
 	return nil
 }
 
-// getUniqueIdentifier Returns the unique identifier that this worker will
+// getUniqueIdentifier Returns the unique identifier that this model will
 // query against.
 //
 // This will return the first field in Configuration.Fields that:
@@ -168,7 +175,7 @@ func (w PqWorker) Delete() error {
 //
 // This function will panic in the event that it encounters a field that is a
 // `UniqueIdentifier`, and doesn't have `IsSet` implemented.
-func (w *PqWorker) getUniqueIdentifier() (Field, error) {
+func (w *PqModel) getUniqueIdentifier() (Field, error) {
 	// Get all unique identifier fields
 	var uniqueIdentifierFields []Field
 	for _, field := range w.Config.Fields {
@@ -195,9 +202,77 @@ func (w *PqWorker) getUniqueIdentifier() (Field, error) {
 	return uniqueIdentifierField, nil
 }
 
-// consumeRow Scans a *sql.Row into our struct
-// that is using this worker
-func (w *PqWorker) consumeRow(row *sql.Row) error {
+// BulkFetch gets an array of models
+func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) ([]Model, error) {
+	// Generate Query
+	var queryBuffer bytes.Buffer
+	queryBuffer.WriteString("SELECT ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if (i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(" FROM ")
+	queryBuffer.WriteString(buildModel().GetConfiguration().TableName)
+	queryBuffer.WriteString(" ORDER BY ")
+	for i, orderBy := range fetchConfig.OrderBys {
+		// Validate that the orderBy.Field is a field
+		valid := false
+		for _, field := range w.Config.Fields {
+			if field.Name == orderBy.Field {
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			return nil, fmt.Errorf("Could not order table '%v' by the invalid column '%v'",
+				w.Config.TableName, orderBy.Field)
+		}
+		// Write to query
+		queryBuffer.WriteString(orderBy.ToString())
+		if (i + 1) < len(fetchConfig.OrderBys) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(" LIMIT ")
+	queryBuffer.WriteString(strconv.Itoa(fetchConfig.Limit))
+	queryBuffer.WriteString(" OFFSET ")
+	queryBuffer.WriteString(strconv.Itoa(fetchConfig.Offset))
+	queryBuffer.WriteString(";")
+
+	// Execute Query
+	rows, err := w.Database.Query(queryBuffer.String())
+	if err != nil {
+		return nil, err
+	}
+
+	// Stuff into []Model
+	var models []Model
+	for rows.Next() {
+		model := buildModel()
+
+		// Consume Rows
+		fields := model.GetConfiguration().Fields
+		var s []interface{}
+		for _, value := range fields {
+			s = append(s, value.Pointer)
+		}
+		err := rows.Scan(s...)
+		if err != nil {
+			return nil, err
+		}
+
+		models = append(models, model.(Model))
+	}
+
+	// OK
+	return models, nil
+}
+
+// ConsumeRow Scans a *sql.Row into our struct
+// that is using this model
+func (w *PqModel) ConsumeRow(row *sql.Row) error {
 	fields := w.Config.Fields
 	var s []interface{}
 	for _, value := range fields {

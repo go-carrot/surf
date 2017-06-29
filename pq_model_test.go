@@ -18,7 +18,7 @@ import (
 // as we are only using this model to intentionally create any error
 // in the database.
 type Place struct {
-	surf.Worker
+	surf.Model
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -29,7 +29,7 @@ func NewPlace(dbConnection *sql.DB) *Place {
 }
 
 func (p *Place) Prep(dbConnection *sql.DB) *Place {
-	p.Worker = &surf.PqWorker{
+	p.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "place",
@@ -62,7 +62,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 // There is no need to create a model for this in the database
 // as we are using this to test a failure before we even hit the db
 type Person struct {
-	surf.Worker
+	surf.Model
 	Id   int    `json:"id"`
 	Name string `json:"name"`
 }
@@ -73,7 +73,7 @@ func NewPerson(dbConnection *sql.DB) *Person {
 }
 
 func (p *Person) Prep(dbConnection *sql.DB) *Person {
-	p.Worker = &surf.PqWorker{
+	p.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "people",
@@ -114,7 +114,7 @@ CREATE TABLE animals(
 );
 */
 type Animal struct {
-	surf.Worker
+	surf.Model
 	Id   int    `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
@@ -127,7 +127,7 @@ func NewAnimal(dbConnection *sql.DB) *Animal {
 }
 
 func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
-	a.Worker = &surf.PqWorker{
+	a.Model = &surf.PqModel{
 		Database: dbConnection,
 		Config: surf.Configuration{
 			TableName: "animals",
@@ -168,6 +168,71 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 		},
 	}
 	return a
+}
+
+// ==================================================
+// ========== Animal Consume Failure Model ==========
+// ==================================================
+
+// This model exists purely so we can test that ConsumeRows
+// properly throws an error
+//
+// Intentionally using the wrong type for Name
+type AnimalConsume struct {
+	surf.Model
+	Id   int    `json:"id"`
+	Slug string `json:"slug"`
+	Name int    `json:"name"`
+	Age  int    `json:"age"`
+}
+
+func NewAnimalConsume(dbConnection *sql.DB) *AnimalConsume {
+	animalConsume := new(AnimalConsume)
+	return animalConsume.Prep(dbConnection)
+}
+
+func (ac *AnimalConsume) Prep(dbConnection *sql.DB) *AnimalConsume {
+	ac.Model = &surf.PqModel{
+		Database: dbConnection,
+		Config: surf.Configuration{
+			TableName: "animals",
+			Fields: []surf.Field{
+				{
+					Pointer:          &ac.Id,
+					Name:             "id",
+					UniqueIdentifier: true,
+					IsSet: func(pointer interface{}) bool {
+						pointerInt := *pointer.(*int)
+						return pointerInt != 0
+					},
+				},
+				{
+					Pointer:          &ac.Slug,
+					Name:             "slug",
+					UniqueIdentifier: true,
+					IsSet: func(pointer interface{}) bool {
+						pointerStr := *pointer.(*string)
+						return pointerStr != ""
+					},
+					Insertable: true,
+					Updatable:  true,
+				},
+				{
+					Pointer:    &ac.Name,
+					Name:       "name",
+					Insertable: true,
+					Updatable:  true,
+				},
+				{
+					Pointer:    &ac.Age,
+					Name:       "age",
+					Insertable: true,
+					Updatable:  true,
+				},
+			},
+		},
+	}
+	return ac
 }
 
 // ================================
@@ -263,6 +328,124 @@ func (suite *PqWorkerTestSuite) TestLoad() {
 
 	// Clean up Rigby
 	rigby.Delete()
+}
+
+func (suite *PqWorkerTestSuite) TestBulkLoad() {
+	// Create some Animals
+	luna := NewAnimal(suite.db)
+	luna.Name = "Luna"
+	luna.Slug = "luna"
+	luna.Age = 2
+	luna.Insert()
+	assert.NotEqual(suite.T(), 0, luna.Id)
+
+	rae := NewAnimal(suite.db)
+	rae.Name = "Rae"
+	rae.Slug = "rae"
+	rae.Age = 2
+	rae.Insert()
+	assert.NotEqual(suite.T(), 0, rae.Id)
+
+	// ====== Load ASC
+
+	// Bulk load
+	animals, err := NewAnimal(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "name", Type: surf.ORDER_BY_ASC},
+		},
+	}, func() surf.Model { return NewAnimal(suite.db) })
+	assert.Nil(suite.T(), err)
+
+	// Test that they were loaded
+	lunaFound, raeFound := false, false
+	for _, animal := range animals {
+		switch animal.(*Animal).Name {
+		case "Luna":
+			lunaFound = true
+		case "Rae":
+			// Luna should come first in the list
+			assert.True(suite.T(), lunaFound)
+			raeFound = true
+		}
+	}
+	assert.True(suite.T(), lunaFound && raeFound)
+
+	// ====== Load DESC
+
+	// Bulk load
+	config := surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+	}
+	config.ConsumeSortQuery("-name,id")
+	animals, err = NewAnimal(suite.db).BulkFetch(config, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.Nil(suite.T(), err)
+
+	// Test that they were loaded
+	lunaFound, raeFound = false, false
+	for _, animal := range animals {
+		switch animal.(*Animal).Name {
+		case "Rae":
+			raeFound = true
+		case "Luna":
+			// Rae should come first in the list
+			assert.True(suite.T(), raeFound)
+			lunaFound = true
+		}
+	}
+	assert.True(suite.T(), lunaFound && raeFound)
+
+	// Clean Up
+	luna.Delete()
+	rae.Delete()
+}
+
+func (suite *PqWorkerTestSuite) TestBulkLoadFailures() {
+	// Create an Animal
+	luna := NewAnimal(suite.db)
+	luna.Name = "Luna"
+	luna.Slug = "luna"
+	luna.Age = 2
+	luna.Insert()
+	assert.NotEqual(suite.T(), 0, luna.Id)
+
+	// Load via invalid Order By
+	config := surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+	}
+	config.ConsumeSortQuery("-helloworld")
+	_, err := NewAnimal(suite.db).BulkFetch(config, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.NotNil(suite.T(), err)
+
+	// Test a failed DB query
+	_, err = NewPlace(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+	}, func() surf.Model { return NewPlace(suite.db) })
+	assert.NotNil(suite.T(), err)
+
+	// Test that ConsumeRow will fail
+	_, err = NewAnimalConsume(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+	}, func() surf.Model { return NewAnimalConsume(suite.db) })
+	assert.NotNil(suite.T(), err)
+
+	// Clean up
+	luna.Delete()
 }
 
 func (suite *PqWorkerTestSuite) TestUpdate() {
