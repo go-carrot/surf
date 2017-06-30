@@ -181,6 +181,12 @@ IsSet: func(pointer interface{}) bool {
 // ...
 ```
 
+#### SkipValidation
+
+This field has no meaning to Surf itself, so if you are only using Surf, don't worry about this field.
+
+This field is used in [Turf](https://github.com/go-carrot/turf) to skip the validation process in auto-generated controllers.
+
 ## Models
 
 Models are simply implementations that adhere to the following interface:

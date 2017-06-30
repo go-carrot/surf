@@ -24,6 +24,7 @@ type Field struct {
 	Insertable       bool
 	Updatable        bool
 	UniqueIdentifier bool
+	SkipValidation   bool
 	IsSet            func(interface{}) bool
 }
 
