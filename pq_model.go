@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"gopkg.in/guregu/null.v3"
 	"strconv"
 )
 
@@ -63,20 +62,20 @@ func (w *PqModel) Insert() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(query, valueFields...)
-	err := w.ConsumeRow(row)
+	err := consumeRow(w, row)
 	if err != nil {
 		return err
 	}
 
 	// Expand foreign references
-	return w.expandForeign()
+	return expandForeign(w)
 }
 
 // Load loads the model from the database from its unique identifier
 // and then loads those values into the struct
 func (w *PqModel) Load() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -102,19 +101,19 @@ func (w *PqModel) Load() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(query, uniqueIdentifierField.Pointer)
-	err = w.ConsumeRow(row)
+	err = consumeRow(w, row)
 	if err != nil {
 		return err
 	}
 
 	// Expand foreign references
-	return w.expandForeign()
+	return expandForeign(w)
 }
 
 // Update updates the model with the current values in the struct
 func (w *PqModel) Update() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -159,19 +158,19 @@ func (w *PqModel) Update() error {
 
 	// Execute Query
 	row := w.Database.QueryRow(query, valueFields...)
-	err = w.ConsumeRow(row)
+	err = consumeRow(w, row)
 	if err != nil {
 		return err
 	}
 
 	// Expand foreign references
-	return w.expandForeign()
+	return expandForeign(w)
 }
 
 // Delete deletes the model
-func (w PqModel) Delete() error {
+func (w *PqModel) Delete() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -200,42 +199,6 @@ func (w PqModel) Delete() error {
 	return nil
 }
 
-// getUniqueIdentifier Returns the unique identifier that this model will
-// query against.
-//
-// This will return the first field in Configuration.Fields that:
-//   - Has `UniqueIdentifier` set to true
-//   - Returns true from `IsSet`
-//
-// This function will panic in the event that it encounters a field that is a
-// `UniqueIdentifier`, and doesn't have `IsSet` implemented.
-func (w *PqModel) getUniqueIdentifier() (Field, error) {
-	// Get all unique identifier fields
-	var uniqueIdentifierFields []Field
-	for _, field := range w.Config.Fields {
-		if field.UniqueIdentifier {
-			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
-		}
-	}
-
-	// Determine which unique identifier we will be querying with
-	var uniqueIdentifierField Field
-	for _, field := range uniqueIdentifierFields {
-		if field.IsSet == nil {
-			panic(fmt.Sprintf("Field `%v` must implement IsSet, as it is a `UniqueIdentifier`", field.Name))
-		} else if field.IsSet(field.Pointer) {
-			uniqueIdentifierField = field
-			break
-		}
-	}
-
-	// Return
-	if uniqueIdentifierField.Pointer == nil {
-		return uniqueIdentifierField, errors.New("There is no UniqueIdentifier Field that is set")
-	}
-	return uniqueIdentifierField, nil
-}
-
 // BulkFetch gets an array of models
 func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) ([]Model, error) {
 	// Set up values
@@ -255,7 +218,8 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	if len(fetchConfig.Predicates) > 0 {
 		// WHERE
 		queryBuffer.WriteString(" ")
-		predicatesStr, predicateValues := PredicatesToString(1, fetchConfig.Predicates)
+		predicatesStr, predicateValues := predicatesToString(1, fetchConfig.Predicates)
+
 		values = append(values, predicateValues...)
 		queryBuffer.WriteString(predicatesStr)
 	}
@@ -276,7 +240,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 				w.Config.TableName, orderBy.Field)
 		}
 		// Write to query
-		queryBuffer.WriteString(orderBy.ToString())
+		queryBuffer.WriteString(orderBy.toString())
 		if (i + 1) < len(fetchConfig.OrderBys) {
 			queryBuffer.WriteString(", ")
 		}
@@ -316,6 +280,14 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 		models = append(models, model.(Model))
 	}
 
+	// Expand
+	/*
+		err = expandAllForeigns(buildModel, models)
+		if err != nil {
+			return nil, err
+		}
+	*/
+
 	// Expand all foreign references
 	for _, field := range buildModel().GetConfiguration().Fields {
 		// If the field is a foreign key
@@ -330,144 +302,4 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 
 	// OK
 	return models, nil
-}
-
-// expandForeigns expands a single foreign key for an array of Model
-func expandForeigns(fieldName string, foreignBuilder BuildModel, foreignField string, models []Model) error {
-	// Get Foreign IDs
-	ids := make([]interface{}, 0)
-	for _, model := range models {
-		for _, field := range model.GetConfiguration().Fields {
-			if field.Name == fieldName {
-				switch tv := field.Pointer.(type) {
-				case *int64:
-					ids = appendIfMissing(ids, *tv)
-					break
-				case *null.Int:
-					if tv.Valid {
-						ids = appendIfMissing(ids, tv.Int64)
-					}
-					break
-				}
-			}
-		}
-	}
-
-	// Load Foreign models
-	foreignModels, err := foreignBuilder().BulkFetch(
-		BulkFetchConfig{
-			Limit: len(ids),
-			Predicates: []Predicate{{
-				Field:         foreignField,
-				PredicateType: WHERE_IN,
-				Values:        ids,
-			}},
-		},
-		foreignBuilder,
-	)
-	if err != nil {
-		return err
-	}
-
-	// Stuff foreign models into models
-	for _, model := range models {
-		for _, field := range model.GetConfiguration().Fields {
-			if field.Name == fieldName {
-				var toMatch int64
-				switch tv := field.Pointer.(type) {
-				case *int64:
-					toMatch = *tv
-					break
-				case *null.Int:
-					toMatch = tv.Int64
-					break
-				}
-
-			MatchForeignModel:
-				for _, foreignModel := range foreignModels {
-				FindField:
-					for _, foreignModelField := range foreignModel.GetConfiguration().Fields {
-						if foreignModelField.Name == foreignField {
-
-							if *(foreignModelField.Pointer.(*int64)) == toMatch {
-								field.SetReference(foreignModel)
-								break MatchForeignModel
-							}
-							break FindField
-						}
-					}
-				}
-				break
-			}
-		}
-	}
-	return nil
-}
-
-// appendIfMissing functions like append(), but will only add the
-// int64 to the slice if it doesn't exist in the slice already
-func appendIfMissing(slice []interface{}, i int64) []interface{} {
-	for _, ele := range slice {
-		if ele == i {
-			return slice
-		}
-	}
-	return append(slice, i)
-}
-
-// expandForeign expands all foreign references for a single model
-func (w *PqModel) expandForeign() error {
-	// Load all foreign references
-	for _, field := range w.Config.Fields {
-
-		// If it's a set foreign reference
-		if field.GetReference != nil && field.SetReference != nil && field.IsSet(field.Pointer) {
-
-			// Get the reference type
-			modelBuilder, identifier := field.GetReference()
-			model := modelBuilder()
-
-			// Set the identifier on the foreign reference
-			// The foreign reference value may only be a `null.Int` or an `int64`
-			// The identifier on the foreign model may only be of type `int64`
-			for _, modelField := range model.GetConfiguration().Fields {
-				if modelField.Name == identifier {
-					switch tv := field.Pointer.(type) {
-					case *int64:
-						*(modelField.Pointer.(*int64)) = *tv
-						break
-					case *null.Int:
-						*(modelField.Pointer.(*int64)) = tv.Int64
-						break
-					}
-					break
-				}
-			}
-
-			// Load
-			err := model.Load()
-			if err != nil {
-				return err
-			}
-
-			// Set reference
-			err = field.SetReference(model)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-// ConsumeRow Scans a *sql.Row into our struct
-// that is using this model
-func (w *PqModel) ConsumeRow(row *sql.Row) error {
-	fields := w.Config.Fields
-	var s []interface{}
-	for _, value := range fields {
-		s = append(s, value.Pointer)
-	}
-	return row.Scan(s...)
 }
