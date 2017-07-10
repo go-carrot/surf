@@ -10,6 +10,7 @@ go:
 services:
   - postgresql
 before_script:
+  - go get golang.org/x/tools/cmd/cover
   - |
     psql \
       --command='create database travis_ci_test;' \
