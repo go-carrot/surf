@@ -280,24 +280,10 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 		models = append(models, model.(Model))
 	}
 
-	// Expand
-	/*
-		err = expandAllForeigns(buildModel, models)
-		if err != nil {
-			return nil, err
-		}
-	*/
-
-	// Expand all foreign references
-	for _, field := range buildModel().GetConfiguration().Fields {
-		// If the field is a foreign key
-		if field.GetReference != nil && field.SetReference != nil {
-			builder, foreignField := field.GetReference()
-			err = expandForeigns(field.Name, builder, foreignField, models)
-			if err != nil {
-				return nil, err
-			}
-		}
+	// Expand foreign references
+	err = expandForeigns(buildModel, models)
+	if err != nil {
+		return nil, err
 	}
 
 	// OK

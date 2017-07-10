@@ -43,7 +43,7 @@ func getUniqueIdentifier(w Model) (Field, error) {
 	return uniqueIdentifierField, nil
 }
 
-// expandForeign expands all foreign references for a single model
+// expandForeign expands all foreign references for a single Model
 func expandForeign(model Model) error {
 	// Load all foreign references
 	for _, field := range model.GetConfiguration().Fields {
@@ -89,13 +89,14 @@ func expandForeign(model Model) error {
 	return nil
 }
 
-func expandAllForeigns(modelBuilder BuildModel, models []Model) error {
+// expandForeigns expands all foreign references for an array of Model
+func expandForeigns(modelBuilder BuildModel, models []Model) error {
 	// Expand all foreign references
 	for _, field := range modelBuilder().GetConfiguration().Fields {
 		// If the field is a foreign key
 		if field.GetReference != nil && field.SetReference != nil {
 			builder, foreignField := field.GetReference()
-			err := expandForeigns(field.Name, builder, foreignField, models)
+			err := expandForeignsByField(field.Name, builder, foreignField, models)
 			if err != nil {
 				return err
 			}
@@ -104,8 +105,8 @@ func expandAllForeigns(modelBuilder BuildModel, models []Model) error {
 	return nil
 }
 
-// expandForeigns expands a single foreign key for an array of Model
-func expandForeigns(fieldName string, foreignBuilder BuildModel, foreignField string, models []Model) error {
+// expandForeignsByField expands a single foreign key for an array of Model
+func expandForeignsByField(fieldName string, foreignBuilder BuildModel, foreignField string, models []Model) error {
 	// Get Foreign IDs
 	ids := make([]interface{}, 0)
 	for _, model := range models {
