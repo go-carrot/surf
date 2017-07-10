@@ -170,6 +170,65 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 	return a
 }
 
+// ===============================
+// ========== Toy Model ==========
+// ===============================
+
+/**
+Represents:
+
+CREATE TABLE toys(
+  id serial PRIMARY KEY,
+  name text NOT NULL,
+  owner bigint NOT NULL REFERENCES animals(id) ON DELETE CASCADE
+);
+*/
+type Toy struct {
+	surf.Model
+	Id      int     `json:"id"`
+	Name    string  `json:"name"`
+	OwnerId int     `json:"-"`
+	Owner   *Animal `json:"animal"`
+}
+
+func NewToy(dbConnection *sql.DB) *Toy {
+	toy := new(Toy)
+	return toy.Prep(dbConnection)
+}
+
+func (t *Toy) Prep(dbConnection *sql.DB) *Toy {
+	t.Model = &surf.PqModel{
+		Database: dbConnection,
+		Config: surf.Configuration{
+			TableName: "toys",
+			Fields: []surf.Field{
+				{Pointer: &t.Id, Name: "id", UniqueIdentifier: true,
+					IsSet: func(pointer interface{}) bool {
+						pointerInt := *pointer.(*int)
+						return pointerInt != 0
+					}},
+				{Pointer: &t.Name, Name: "name", Insertable: true, Updatable: true},
+				{Pointer: &t.OwnerId, Name: "owner", Insertable: true, Updatable: true,
+					GetReference: func() (surf.BuildModel, string) {
+						return func() surf.Model {
+							return NewAnimal(dbConnection)
+						}, "id"
+					},
+					SetReference: func(model surf.Model) error {
+						t.Owner = model.(*Animal)
+						return nil
+					},
+					IsSet: func(pointer interface{}) bool {
+						pointerInt := *pointer.(*int)
+						return pointerInt != 0
+					},
+				},
+			},
+		},
+	}
+	return t
+}
+
 // ==================================================
 // ========== Animal Consume Failure Model ==========
 // ==================================================
