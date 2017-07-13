@@ -48,7 +48,14 @@ func (w *PqModel) Insert() error {
 			queryBuffer.WriteString(", ")
 		}
 	}
-	queryBuffer.WriteString(") RETURNING *;")
+	queryBuffer.WriteString(") RETURNING ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if(i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(";")
 
 	// Get Value Fields
 	var valueFields []interface{}
@@ -143,7 +150,14 @@ func (w *PqModel) Update() error {
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$")
 	queryBuffer.WriteString(strconv.Itoa(len(updatableFields) + 1))
-	queryBuffer.WriteString(" RETURNING *;")
+	queryBuffer.WriteString(" RETURNING ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if(i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(";")
 
 	// Get Value Fields
 	var valueFields []interface{}
