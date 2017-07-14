@@ -25,6 +25,8 @@ type Field struct {
 	Updatable        bool
 	UniqueIdentifier bool
 	SkipValidation   bool
+	GetReference     func() (BuildModel, string)
+	SetReference     func(Model) error
 	IsSet            func(interface{}) bool
 }
 
