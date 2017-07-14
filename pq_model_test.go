@@ -6,9 +6,19 @@ import (
 	_ "github.com/lib/pq"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/suite"
+	"gopkg.in/guregu/null.v3"
 	"os"
 	"testing"
 )
+
+type StackWriter struct {
+	Stack []string
+}
+
+func (sw *StackWriter) Write(p []byte) (n int, err error) {
+	sw.Stack = append(sw.Stack, string(p))
+	return 0, nil
+}
 
 // =================================
 // ========== Place Model ==========
@@ -19,7 +29,7 @@ import (
 // in the database.
 type Place struct {
 	surf.Model
-	Id   int    `json:"id"`
+	Id   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -39,7 +49,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 					Name:             "id",
 					UniqueIdentifier: true,
 					IsSet: func(pointer interface{}) bool {
-						pointerInt := *pointer.(*int)
+						pointerInt := *pointer.(*int64)
 						return pointerInt != 0
 					},
 				},
@@ -63,7 +73,7 @@ func (p *Place) Prep(dbConnection *sql.DB) *Place {
 // as we are using this to test a failure before we even hit the db
 type Person struct {
 	surf.Model
-	Id   int    `json:"id"`
+	Id   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
@@ -115,7 +125,7 @@ CREATE TABLE animals(
 */
 type Animal struct {
 	surf.Model
-	Id   int    `json:"id"`
+	Id   int64  `json:"id"`
 	Slug string `json:"slug"`
 	Name string `json:"name"`
 	Age  int    `json:"age"`
@@ -137,7 +147,7 @@ func (a *Animal) Prep(dbConnection *sql.DB) *Animal {
 					Name:             "id",
 					UniqueIdentifier: true,
 					IsSet: func(pointer interface{}) bool {
-						pointerInt := *pointer.(*int)
+						pointerInt := *pointer.(*int64)
 						return pointerInt != 0
 					},
 				},
@@ -185,10 +195,12 @@ CREATE TABLE toys(
 */
 type Toy struct {
 	surf.Model
-	Id      int     `json:"id"`
-	Name    string  `json:"name"`
-	OwnerId int     `json:"-"`
-	Owner   *Animal `json:"animal"`
+	Id            int64    `json:"id"`
+	Name          string   `json:"name"`
+	OwnerId       int64    `json:"-"`
+	Owner         *Animal  `json:"owner"`
+	SecondOwnerId null.Int `json:"-"`
+	SecondOwner   *Animal  `json:"second_owner"`
 }
 
 func NewToy(dbConnection *sql.DB) *Toy {
@@ -204,9 +216,10 @@ func (t *Toy) Prep(dbConnection *sql.DB) *Toy {
 			Fields: []surf.Field{
 				{Pointer: &t.Id, Name: "id", UniqueIdentifier: true,
 					IsSet: func(pointer interface{}) bool {
-						pointerInt := *pointer.(*int)
+						pointerInt := *pointer.(*int64)
 						return pointerInt != 0
-					}},
+					},
+				},
 				{Pointer: &t.Name, Name: "name", Insertable: true, Updatable: true},
 				{Pointer: &t.OwnerId, Name: "owner", Insertable: true, Updatable: true,
 					GetReference: func() (surf.BuildModel, string) {
@@ -219,8 +232,23 @@ func (t *Toy) Prep(dbConnection *sql.DB) *Toy {
 						return nil
 					},
 					IsSet: func(pointer interface{}) bool {
-						pointerInt := *pointer.(*int)
+						pointerInt := *pointer.(*int64)
 						return pointerInt != 0
+					},
+				},
+				{Pointer: &t.SecondOwnerId, Name: "second_owner", Insertable: true, Updatable: true,
+					GetReference: func() (surf.BuildModel, string) {
+						return func() surf.Model {
+							return NewAnimal(dbConnection)
+						}, "id"
+					},
+					SetReference: func(model surf.Model) error {
+						t.SecondOwner = model.(*Animal)
+						return nil
+					},
+					IsSet: func(pointer interface{}) bool {
+						pointerInt := *pointer.(*null.Int)
+						return pointerInt.Valid
 					},
 				},
 			},
@@ -304,9 +332,12 @@ type PqWorkerTestSuite struct {
 }
 
 func (suite *PqWorkerTestSuite) SetupTest() {
-	databaseUrl := os.Getenv("SERF_TEST_DATABASE_URL")
+	// Enable logging
+	stackWriter := &StackWriter{}
+	surf.SetLogging(true, stackWriter)
 
 	// Opening + storing the connection
+	databaseUrl := os.Getenv("SERF_TEST_DATABASE_URL")
 	db, err := sql.Open("postgres", databaseUrl)
 	if err != nil {
 		suite.Fail("Failed to open database connection")
@@ -614,6 +645,182 @@ func (suite *PqWorkerTestSuite) TestGetConfiguration() {
 		}
 	}
 	assert.True(suite.T(), (hasId && hasSlug && hasName && hasAge))
+}
+
+func (suite *PqWorkerTestSuite) TestNestedModel() {
+	// Create an Animal
+	cat := NewAnimal(suite.db)
+	cat.Name = "Luna"
+	cat.Slug = "luna"
+	cat.Age = 2
+	cat.Insert()
+	assert.NotEqual(suite.T(), 0, cat.Id)
+
+	// Create a toy
+	tennisBall := NewToy(suite.db)
+	tennisBall.Name = "tennis ball"
+	tennisBall.OwnerId = cat.Id
+	tennisBall.Insert()
+	assert.NotEqual(suite.T(), int64(0), tennisBall.Id)
+
+	// Create a second toy
+	sock := NewToy(suite.db)
+	sock.Name = "sock"
+	sock.OwnerId = cat.Id
+	sock.SecondOwnerId = null.IntFrom(cat.Id)
+	sock.Insert()
+	assert.NotEqual(suite.T(), int64(0), sock.Id)
+
+	// Load all toys
+	toys, err := NewToy(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+	}, func() surf.Model {
+		return NewToy(suite.db)
+	})
+
+	// Verify everything loaded properly
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 2, len(toys))
+
+	loadedTennisBall := toys[0]
+	assert.Equal(suite.T(), tennisBall.Id, loadedTennisBall.(*Toy).Id)
+	assert.Equal(suite.T(), "tennis ball", loadedTennisBall.(*Toy).Name)
+	assert.Equal(suite.T(), cat.Id, loadedTennisBall.(*Toy).Owner.Id)
+
+	loadedSock := toys[1]
+	assert.Equal(suite.T(), loadedSock.(*Toy).Id, sock.Id)
+	assert.Equal(suite.T(), loadedSock.(*Toy).Name, "sock")
+	assert.Equal(suite.T(), loadedSock.(*Toy).Owner.Id, cat.Id)
+
+	// Clean up
+	cat.Delete()
+	tennisBall.Delete()
+	sock.Delete()
+}
+
+func (suite *PqWorkerTestSuite) TestPredicates() {
+	// Create some Animals
+	luna := NewAnimal(suite.db)
+	luna.Name = "Luna"
+	luna.Slug = "luna"
+	luna.Age = 2
+	luna.Insert()
+	assert.NotEqual(suite.T(), 0, luna.Id)
+
+	rae := NewAnimal(suite.db)
+	rae.Name = "Rae"
+	rae.Slug = "rae"
+	rae.Age = 2
+	rae.Insert()
+	assert.NotEqual(suite.T(), 0, rae.Id)
+
+	rigby := NewAnimal(suite.db)
+	rigby.Name = "Rigby"
+	rigby.Slug = "rigby"
+	rigby.Age = 3
+	rigby.Insert()
+	assert.NotEqual(suite.T(), 0, rigby.Id)
+
+	// Test multiple predicates
+	animals, err := NewAnimal(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+		Predicates: []surf.Predicate{
+			{Field: "name", PredicateType: surf.WHERE_NOT_EQUAL, Values: []interface{}{"Luna"}},
+			{Field: "name", PredicateType: surf.WHERE_NOT_EQUAL, Values: []interface{}{"Rae"}},
+		},
+	}, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 1, len(animals))
+	loadedRigby := animals[0]
+	assert.Equal(suite.T(), loadedRigby.(*Animal).Name, "Rigby")
+
+	// Test WHERE_IN with multiple elements
+	animals, err = NewAnimal(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+		Predicates: []surf.Predicate{
+			{Field: "name", PredicateType: surf.WHERE_IN, Values: []interface{}{"Luna", "Rae"}},
+		},
+	}, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 2, len(animals))
+	loadedLuna := animals[0]
+	loadedRae := animals[1]
+	assert.Equal(suite.T(), "Luna", loadedLuna.(*Animal).Name)
+	assert.Equal(suite.T(), "Rae", loadedRae.(*Animal).Name)
+
+	// Test WHERE_NOT_NULL
+	animals, err = NewAnimal(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+		Predicates: []surf.Predicate{
+			{Field: "name", PredicateType: surf.WHERE_IS_NOT_NULL},
+		},
+	}, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.Nil(suite.T(), err)
+	assert.Equal(suite.T(), 3, len(animals))
+
+	// Cleanup
+	luna.Delete()
+	rae.Delete()
+	rigby.Delete()
+}
+
+func (suite *PqWorkerTestSuite) TestWhereEqualPanic() {
+	suite.PredicatePanic(surf.WHERE_EQUAL)
+	suite.PredicatePanic(surf.WHERE_IN)
+	suite.PredicatePanic(surf.WHERE_NOT_IN)
+	suite.PredicatePanic(surf.WHERE_LIKE)
+	suite.PredicatePanic(surf.WHERE_EQUAL)
+	suite.PredicatePanic(surf.WHERE_NOT_EQUAL)
+	suite.PredicatePanic(surf.WHERE_GREATER_THAN)
+	suite.PredicatePanic(surf.WHERE_GREATER_THAN_OR_EQUAL_TO)
+	suite.PredicatePanic(surf.WHERE_LESS_THAN)
+	suite.PredicatePanic(surf.WHERE_LESS_THAN_OR_EQUAL_TO)
+	suite.PredicatePanic(surf.WHERE_IS_NOT_NULL, 1)
+	suite.PredicatePanic(surf.WHERE_IS_NULL, 1)
+	suite.PredicatePanic(9999, 1)
+}
+
+func (suite *PqWorkerTestSuite) PredicatePanic(predType surf.PredicateType, values ...interface{}) {
+	defer func() {
+		recover()
+	}()
+
+	// Test WHERE_NOT_IN without any elements (panics)
+	NewAnimal(suite.db).BulkFetch(surf.BulkFetchConfig{
+		Limit:  10,
+		Offset: 0,
+		OrderBys: []surf.OrderBy{
+			{Field: "id", Type: surf.ORDER_BY_ASC},
+		},
+		Predicates: []surf.Predicate{
+			{Field: "name", PredicateType: predType, Values: values},
+		},
+	}, func() surf.Model {
+		return NewAnimal(suite.db)
+	})
+	assert.Fail(suite.T(), "Unreachable statement, last call should have panicked")
 }
 
 // In order for 'go test' to run this suite, we need to create

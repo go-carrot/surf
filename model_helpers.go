@@ -121,9 +121,17 @@ func expandForeignsByField(fieldName string, foreignBuilder BuildModel, foreignF
 						ids = appendIfMissing(ids, tv.Int64)
 					}
 					break
+				default:
+					panic(fmt.Sprintf("Foreign Key for %v.%v may only be of type `null.Int` or `int64`",
+						model.GetConfiguration().TableName, field.Name))
 				}
 			}
 		}
+	}
+
+	// If there's nothing to load, exit early
+	if len(ids) == 0 {
+		return nil
 	}
 
 	// Load Foreign models

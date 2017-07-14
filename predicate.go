@@ -7,7 +7,7 @@ import (
 type PredicateType int
 
 const (
-	WHERE_IS_NOT_NULL PredicateType = iota
+	WHERE_IS_NOT_NULL PredicateType = iota // Default
 	WHERE_IS_NULL
 	WHERE_IN
 	WHERE_NOT_IN
@@ -23,8 +23,6 @@ const (
 // getPredicateTypeString returns the predicate type string from it's value
 func getPredicateTypeString(predicateType PredicateType) string {
 	switch predicateType {
-	case WHERE_IS_NOT_NULL:
-		return "WHERE_IS_NOT_NULL"
 	case WHERE_IS_NULL:
 		return "WHERE_IS_NULL"
 	case WHERE_IN:
@@ -46,7 +44,7 @@ func getPredicateTypeString(predicateType PredicateType) string {
 	case WHERE_LESS_THAN_OR_EQUAL_TO:
 		return "WHERE_LESS_THAN_OR_EQUAL_TO"
 	}
-	return ""
+	return "WHERE_IS_NOT_NULL"
 }
 
 // Predicate is the definition of a single where SQL predicate
@@ -66,9 +64,6 @@ func (p *Predicate) toString(valueIndex int) (string, []interface{}) {
 
 	// Type
 	switch p.PredicateType {
-	case WHERE_IS_NOT_NULL:
-		predicate += " IS NOT NULL"
-		break
 	case WHERE_IS_NULL:
 		predicate += " IS NULL"
 		break
@@ -98,6 +93,9 @@ func (p *Predicate) toString(valueIndex int) (string, []interface{}) {
 		break
 	case WHERE_LESS_THAN_OR_EQUAL_TO:
 		predicate += " <= "
+		break
+	default:
+		predicate += " IS NOT NULL"
 		break
 	}
 
@@ -133,6 +131,14 @@ func (p *Predicate) toString(valueIndex int) (string, []interface{}) {
 		values = append(values, p.Values[0])
 		predicate += "$" + strconv.Itoa(valueIndex)
 		break
+	case WHERE_IS_NOT_NULL,
+		WHERE_IS_NULL:
+		if len(p.Values) != 0 {
+			panic("`" + getPredicateTypeString(p.PredicateType) + "` predicates cannot have any values.")
+		}
+		break
+	default:
+		panic("Unknown predicate type.")
 	}
 
 	return predicate, values
