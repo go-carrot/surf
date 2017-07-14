@@ -65,7 +65,7 @@ func (w *PqModel) Insert() error {
 
 	// Log Query
 	query := queryBuffer.String()
-	printQuery(query, valueFields...)
+	PrintSqlQuery(query, valueFields...)
 
 	// Execute Query
 	row := w.Database.QueryRow(query, valueFields...)
@@ -104,7 +104,7 @@ func (w *PqModel) Load() error {
 
 	// Log Query
 	query := queryBuffer.String()
-	printQuery(query, uniqueIdentifierField.Pointer)
+	PrintSqlQuery(query, uniqueIdentifierField.Pointer)
 
 	// Execute Query
 	row := w.Database.QueryRow(query, uniqueIdentifierField.Pointer)
@@ -168,7 +168,7 @@ func (w *PqModel) Update() error {
 
 	// Log Query
 	query := queryBuffer.String()
-	printQuery(query, valueFields...)
+	PrintSqlQuery(query, valueFields...)
 
 	// Execute Query
 	row := w.Database.QueryRow(query, valueFields...)
@@ -199,7 +199,7 @@ func (w *PqModel) Delete() error {
 
 	// Log Query
 	query := queryBuffer.String()
-	printQuery(query, uniqueIdentifierField.Pointer)
+	PrintSqlQuery(query, uniqueIdentifierField.Pointer)
 
 	// Execute Query
 	res, err := w.Database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
@@ -267,7 +267,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 
 	// Log Query
 	query := queryBuffer.String()
-	printQuery(query, values...)
+	PrintSqlQuery(query, values...)
 
 	// Execute Query
 	rows, err := w.Database.Query(query, values...)

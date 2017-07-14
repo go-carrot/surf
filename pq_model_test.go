@@ -11,15 +11,6 @@ import (
 	"testing"
 )
 
-type StackWriter struct {
-	Stack []string
-}
-
-func (sw *StackWriter) Write(p []byte) (n int, err error) {
-	sw.Stack = append(sw.Stack, string(p))
-	return 0, nil
-}
-
 // =================================
 // ========== Place Model ==========
 // =================================

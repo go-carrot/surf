@@ -24,12 +24,12 @@ func SetLogging(enabled bool, writer io.Writer) {
 }
 
 // printQuery prints a query if the user has enabled logging
-func printQuery(query string, args ...interface{}) {
+func PrintSqlQuery(query string, args ...interface{}) {
 	if loggingEnabled {
 		for i, arg := range args {
 			query = strings.Replace(query, "$"+strconv.Itoa(i+1), pointerToLogString(arg), 1)
 		}
-		fmt.Fprintln(loggingWriter, "[Surf Query]: "+query)
+		fmt.Fprint(loggingWriter, query)
 	}
 }
 
