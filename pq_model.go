@@ -51,7 +51,7 @@ func (w *PqModel) Insert() error {
 	queryBuffer.WriteString(") RETURNING ")
 	for i, field := range w.Config.Fields {
 		queryBuffer.WriteString(field.Name)
-		if(i + 1) < len(w.Config.Fields) {
+		if (i + 1) < len(w.Config.Fields) {
 			queryBuffer.WriteString(", ")
 		}
 	}
@@ -153,7 +153,7 @@ func (w *PqModel) Update() error {
 	queryBuffer.WriteString(" RETURNING ")
 	for i, field := range w.Config.Fields {
 		queryBuffer.WriteString(field.Name)
-		if(i + 1) < len(w.Config.Fields) {
+		if (i + 1) < len(w.Config.Fields) {
 			queryBuffer.WriteString(", ")
 		}
 	}
@@ -276,7 +276,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	}
 
 	// Stuff into []Model
-	var models []Model
+	models := make([]Model, 0)
 	for rows.Next() {
 		model := buildModel()
 
