@@ -10,6 +10,7 @@ go:
 services:
   - postgresql
 before_script:
+  - go get golang.org/x/tools/cmd/cover
   - |
     psql \
       --command='create database travis_ci_test;' \
@@ -22,6 +23,12 @@ before_script:
           slug text NOT NULL UNIQUE,
           name text NOT NULL,
           age int NOT NULL
+        );
+        CREATE TABLE toys(
+          id serial PRIMARY KEY,
+          name text NOT NULL,
+          owner bigint NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
+          second_owner bigint REFERENCES animals(id)
         );' \
       --username='postgres' \
       --dbname='travis_ci_test'

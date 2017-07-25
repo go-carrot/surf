@@ -23,8 +23,7 @@ func (w *PqModel) GetConfiguration() *Configuration {
 func (w *PqModel) Insert() error {
 	// Get Insertable Fields
 	var insertableFields []Field
-	allFields := w.Config.Fields
-	for _, field := range allFields {
+	for _, field := range w.Config.Fields {
 		if field.Insertable {
 			insertableFields = append(insertableFields, field)
 		}
@@ -49,7 +48,14 @@ func (w *PqModel) Insert() error {
 			queryBuffer.WriteString(", ")
 		}
 	}
-	queryBuffer.WriteString(") RETURNING *;")
+	queryBuffer.WriteString(") RETURNING ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if (i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(";")
 
 	// Get Value Fields
 	var valueFields []interface{}
@@ -57,16 +63,26 @@ func (w *PqModel) Insert() error {
 		valueFields = append(valueFields, value.Pointer)
 	}
 
+	// Log Query
+	query := queryBuffer.String()
+	PrintSqlQuery(query, valueFields...)
+
 	// Execute Query
-	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
-	return w.ConsumeRow(row)
+	row := w.Database.QueryRow(query, valueFields...)
+	err := consumeRow(w, row)
+	if err != nil {
+		return err
+	}
+
+	// Expand foreign references
+	return expandForeign(w)
 }
 
 // Load loads the model from the database from its unique identifier
 // and then loads those values into the struct
 func (w *PqModel) Load() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -86,15 +102,25 @@ func (w *PqModel) Load() error {
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$1;")
 
+	// Log Query
+	query := queryBuffer.String()
+	PrintSqlQuery(query, uniqueIdentifierField.Pointer)
+
 	// Execute Query
-	row := w.Database.QueryRow(queryBuffer.String(), uniqueIdentifierField.Pointer)
-	return w.ConsumeRow(row)
+	row := w.Database.QueryRow(query, uniqueIdentifierField.Pointer)
+	err = consumeRow(w, row)
+	if err != nil {
+		return err
+	}
+
+	// Expand foreign references
+	return expandForeign(w)
 }
 
 // Update updates the model with the current values in the struct
 func (w *PqModel) Update() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -124,7 +150,14 @@ func (w *PqModel) Update() error {
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$")
 	queryBuffer.WriteString(strconv.Itoa(len(updatableFields) + 1))
-	queryBuffer.WriteString(" RETURNING *;")
+	queryBuffer.WriteString(" RETURNING ")
+	for i, field := range w.Config.Fields {
+		queryBuffer.WriteString(field.Name)
+		if (i + 1) < len(w.Config.Fields) {
+			queryBuffer.WriteString(", ")
+		}
+	}
+	queryBuffer.WriteString(";")
 
 	// Get Value Fields
 	var valueFields []interface{}
@@ -133,15 +166,25 @@ func (w *PqModel) Update() error {
 	}
 	valueFields = append(valueFields, uniqueIdentifierField.Pointer)
 
+	// Log Query
+	query := queryBuffer.String()
+	PrintSqlQuery(query, valueFields...)
+
 	// Execute Query
-	row := w.Database.QueryRow(queryBuffer.String(), valueFields...)
-	return w.ConsumeRow(row)
+	row := w.Database.QueryRow(query, valueFields...)
+	err = consumeRow(w, row)
+	if err != nil {
+		return err
+	}
+
+	// Expand foreign references
+	return expandForeign(w)
 }
 
 // Delete deletes the model
-func (w PqModel) Delete() error {
+func (w *PqModel) Delete() error {
 	// Get Unique Identifier
-	uniqueIdentifierField, err := w.getUniqueIdentifier()
+	uniqueIdentifierField, err := getUniqueIdentifier(w)
 	if err != nil {
 		return err
 	}
@@ -153,6 +196,10 @@ func (w PqModel) Delete() error {
 	queryBuffer.WriteString(" WHERE ")
 	queryBuffer.WriteString(uniqueIdentifierField.Name)
 	queryBuffer.WriteString("=$1;")
+
+	// Log Query
+	query := queryBuffer.String()
+	PrintSqlQuery(query, uniqueIdentifierField.Pointer)
 
 	// Execute Query
 	res, err := w.Database.Exec(queryBuffer.String(), uniqueIdentifierField.Pointer)
@@ -166,45 +213,12 @@ func (w PqModel) Delete() error {
 	return nil
 }
 
-// getUniqueIdentifier Returns the unique identifier that this model will
-// query against.
-//
-// This will return the first field in Configuration.Fields that:
-//   - Has `UniqueIdentifier` set to true
-//   - Returns true from `IsSet`
-//
-// This function will panic in the event that it encounters a field that is a
-// `UniqueIdentifier`, and doesn't have `IsSet` implemented.
-func (w *PqModel) getUniqueIdentifier() (Field, error) {
-	// Get all unique identifier fields
-	var uniqueIdentifierFields []Field
-	for _, field := range w.Config.Fields {
-		if field.UniqueIdentifier {
-			uniqueIdentifierFields = append(uniqueIdentifierFields, field)
-		}
-	}
-
-	// Determine which unique identifier we will be querying with
-	var uniqueIdentifierField Field
-	for _, field := range uniqueIdentifierFields {
-		if field.IsSet == nil {
-			panic(fmt.Sprintf("Field `%v` must implement IsSet, as it is a `UniqueIdentifier`", field.Name))
-		} else if field.IsSet(field.Pointer) {
-			uniqueIdentifierField = field
-			break
-		}
-	}
-
-	// Return
-	if uniqueIdentifierField.Pointer == nil {
-		return uniqueIdentifierField, errors.New("There is no UniqueIdentifier Field that is set")
-	}
-	return uniqueIdentifierField, nil
-}
-
 // BulkFetch gets an array of models
 func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) ([]Model, error) {
-	// Generate Query
+	// Set up values
+	values := make([]interface{}, 0)
+
+	// Generate query
 	var queryBuffer bytes.Buffer
 	queryBuffer.WriteString("SELECT ")
 	for i, field := range w.Config.Fields {
@@ -215,7 +229,17 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	}
 	queryBuffer.WriteString(" FROM ")
 	queryBuffer.WriteString(buildModel().GetConfiguration().TableName)
-	queryBuffer.WriteString(" ORDER BY ")
+	if len(fetchConfig.Predicates) > 0 {
+		// WHERE
+		queryBuffer.WriteString(" ")
+		predicatesStr, predicateValues := predicatesToString(1, fetchConfig.Predicates)
+
+		values = append(values, predicateValues...)
+		queryBuffer.WriteString(predicatesStr)
+	}
+	if len(fetchConfig.OrderBys) > 0 {
+		queryBuffer.WriteString(" ORDER BY ")
+	}
 	for i, orderBy := range fetchConfig.OrderBys {
 		// Validate that the orderBy.Field is a field
 		valid := false
@@ -230,7 +254,7 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 				w.Config.TableName, orderBy.Field)
 		}
 		// Write to query
-		queryBuffer.WriteString(orderBy.ToString())
+		queryBuffer.WriteString(orderBy.toString())
 		if (i + 1) < len(fetchConfig.OrderBys) {
 			queryBuffer.WriteString(", ")
 		}
@@ -241,14 +265,18 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 	queryBuffer.WriteString(strconv.Itoa(fetchConfig.Offset))
 	queryBuffer.WriteString(";")
 
+	// Log Query
+	query := queryBuffer.String()
+	PrintSqlQuery(query, values...)
+
 	// Execute Query
-	rows, err := w.Database.Query(queryBuffer.String())
+	rows, err := w.Database.Query(query, values...)
 	if err != nil {
 		return nil, err
 	}
 
 	// Stuff into []Model
-	var models []Model
+	models := make([]Model, 0)
 	for rows.Next() {
 		model := buildModel()
 
@@ -266,17 +294,12 @@ func (w *PqModel) BulkFetch(fetchConfig BulkFetchConfig, buildModel BuildModel) 
 		models = append(models, model.(Model))
 	}
 
+	// Expand foreign references
+	err = expandForeigns(buildModel, models)
+	if err != nil {
+		return nil, err
+	}
+
 	// OK
 	return models, nil
-}
-
-// ConsumeRow Scans a *sql.Row into our struct
-// that is using this model
-func (w *PqModel) ConsumeRow(row *sql.Row) error {
-	fields := w.Config.Fields
-	var s []interface{}
-	for _, value := range fields {
-		s = append(s, value.Pointer)
-	}
-	return row.Scan(s...)
 }
